@@ -20,6 +20,7 @@ export class ChewDetector {
     this.confirmFrames = options.confirmFrames ?? 5;
     this.warmupMs = options.warmupMs ?? 10000;
     this.minValidForThreshold = options.minValidForThreshold ?? 10;
+    this.minPeakIntervalMs = options.minPeakIntervalMs ?? 200;
 
     this._samples = [];
     this.peaks = [];
@@ -67,6 +68,11 @@ export class ChewDetector {
     // Avoid duplicate peak for the same candidate timestamp
     if (this.peaks.length && this.peaks[this.peaks.length - 1].t_ms === candidate.t_ms) {
       return;
+    }
+
+    if (this.peaks.length) {
+      const last = this.peaks[this.peaks.length - 1];
+      if (candidate.t_ms - last.t_ms < this.minPeakIntervalMs) return;
     }
 
     this.peaks.push({ t_ms: candidate.t_ms });

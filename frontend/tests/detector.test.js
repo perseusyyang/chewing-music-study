@@ -84,3 +84,38 @@ describe('ChewDetector: peak detection', () => {
     expect(d.peaks.length).toBe(0);
   });
 });
+
+describe('ChewDetector: min peak interval', () => {
+  function warmup(d, baseline = 0.10, durationMs = 12000, fps = 30) {
+    const dt = 1000 / fps;
+    for (let t = 0; t < durationMs; t += dt) {
+      d.addSample(t, baseline + 0.001 * Math.sin(t / 100));
+    }
+    return durationMs;
+  }
+
+  it('drops a peak that occurs within minPeakIntervalMs of the previous peak', () => {
+    const d = new ChewDetector({
+      warmupMs: 10000,
+      confirmFrames: 5,
+      k: 1.5,
+      minPeakIntervalMs: 200,
+    });
+    let t = warmup(d);
+    const dt = 1000 / 30; // ~33ms
+
+    // Inject two peaks 100ms apart (well under 200ms threshold)
+    function injectPeak(centerT) {
+      for (let i = -5; i <= 5; i++) {
+        d.addSample(centerT + i * dt, 0.10 + 0.30 * Math.exp(-(i * i) / 2));
+      }
+      for (let i = 1; i <= 6; i++) {
+        d.addSample(centerT + (5 + i) * dt, 0.10);
+      }
+    }
+
+    injectPeak(t + 5 * dt);
+    injectPeak(t + 5 * dt + 100); // 100ms later — should be dropped
+    expect(d.peaks.length).toBe(1);
+  });
+});
