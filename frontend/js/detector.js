@@ -108,4 +108,37 @@ export class ChewDetector {
     }
     this._currentBite = null;
   }
+
+  finalize() {
+    if (this._currentBite && this._currentBite.chews.length >= this.minBiteChews) {
+      const chews = this._currentBite.chews;
+      this.bites.push({
+        start_ms: this._currentBite.start_ms,
+        end_ms: chews[chews.length - 1],
+        chew_count: chews.length,
+      });
+    }
+    this._currentBite = null;
+  }
+
+  getStats(totalDurationMs) {
+    const totalChews = this.peaks.length;
+    const totalBites = this.bites.length;
+    const durationSec = totalDurationMs / 1000;
+    const avgChewFreqHz = durationSec > 0 ? totalChews / durationSec : 0;
+    const avgChewsPerBite = totalBites > 0 ? totalChews / totalBites : 0;
+    const chewFreqBuckets10s = this._freqBuckets(totalDurationMs);
+    return { totalChews, totalBites, avgChewFreqHz, avgChewsPerBite, chewFreqBuckets10s };
+  }
+
+  _freqBuckets(totalDurationMs) {
+    const bucketMs = 10000;
+    const n = Math.max(1, Math.ceil(totalDurationMs / bucketMs));
+    const counts = new Array(n).fill(0);
+    for (const p of this.peaks) {
+      const i = Math.min(n - 1, Math.floor(p.t_ms / bucketMs));
+      if (i >= 0) counts[i]++;
+    }
+    return counts.map((c) => c / 10); // Hz
+  }
 }

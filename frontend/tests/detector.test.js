@@ -196,3 +196,63 @@ describe('ChewDetector: bite tracking', () => {
     expect(d.bites.length).toBe(0);
   });
 });
+
+describe('ChewDetector: finalize and stats', () => {
+  function warmup(d, baseline = 0.10, durationMs = 12000, fps = 30) {
+    const dt = 1000 / fps;
+    for (let t = 0; t < durationMs; t += dt) {
+      d.addSample(t, baseline + 0.001 * Math.sin(t / 100));
+    }
+    return durationMs;
+  }
+
+  function injectPeak(d, centerT) {
+    const dt = 1000 / 30;
+    for (let i = -5; i <= 5; i++) {
+      d.addSample(centerT + i * dt, 0.10 + 0.30 * Math.exp(-(i * i) / 2));
+    }
+    for (let i = 1; i <= 6; i++) {
+      d.addSample(centerT + (5 + i) * dt, 0.10);
+    }
+  }
+
+  it('finalize() closes a still-open bite that had enough chews', () => {
+    const d = new ChewDetector({ warmupMs: 10000, confirmFrames: 5, k: 1.5, minBiteChews: 2 });
+    let t = warmup(d);
+    injectPeak(d, t + 500);
+    injectPeak(d, t + 1000);
+    // No long pause — bite is still open
+    expect(d.bites.length).toBe(0);
+
+    d.finalize();
+    expect(d.bites.length).toBe(1);
+    expect(d.bites[0].chew_count).toBe(2);
+  });
+
+  it('getStats returns counts, average frequency, and 10s buckets', () => {
+    const d = new ChewDetector({ warmupMs: 0, confirmFrames: 5, k: 1.0, biteEndPauseMs: 1500, minBiteChews: 2 });
+    // Inject 3 peaks in bucket 0 (0-10s), 2 in bucket 1 (10-20s)
+    // Skip warmup by setting warmupMs=0 (then minValidForThreshold gate still applies → feed baseline first)
+    const dt = 1000 / 30;
+    for (let ts = 0; ts < 500; ts += dt) d.addSample(ts, 0.10);
+    injectPeak(d, 1000);
+    injectPeak(d, 2000);
+    injectPeak(d, 3000);
+    // pause to close bite
+    for (let ts = 3500; ts < 11000; ts += dt) d.addSample(ts, 0.10);
+    injectPeak(d, 11500);
+    injectPeak(d, 12500);
+    for (let ts = 13000; ts < 25000; ts += dt) d.addSample(ts, 0.10);
+
+    d.finalize();
+
+    const stats = d.getStats(25000);
+    expect(stats.totalChews).toBe(5);
+    expect(stats.totalBites).toBe(2);
+    expect(stats.avgChewFreqHz).toBeCloseTo(5 / 25, 3);
+    expect(stats.avgChewsPerBite).toBeCloseTo(2.5, 3);
+    expect(stats.chewFreqBuckets10s.length).toBe(3); // 0-10, 10-20, 20-25
+    expect(stats.chewFreqBuckets10s[0]).toBeCloseTo(0.3, 3); // 3 peaks / 10s
+    expect(stats.chewFreqBuckets10s[1]).toBeCloseTo(0.2, 3); // 2 peaks / 10s
+  });
+});
