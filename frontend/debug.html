@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chewing Detector — Debug</title>
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; margin: 1rem; }
+    video { width: 240px; height: 180px; border: 1px solid #ccc; }
+    canvas { width: 100%; max-width: 800px; height: 200px; border: 1px solid #ddd; display: block; margin-top: 1rem; }
+    .row { display: flex; gap: 1rem; align-items: flex-start; }
+    .stat { font-family: monospace; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <h1>Chewing Detector — Debug</h1>
+  <div class="row">
+    <video id="cam" autoplay muted playsinline></video>
+    <div class="stat">
+      <div>mouth_open: <span id="m">—</span></div>
+      <div>peaks: <span id="p">0</span></div>
+      <div>bites: <span id="b">0</span></div>
+      <div>no_face: <span id="nf">—</span></div>
+    </div>
+  </div>
+  <canvas id="chart" width="800" height="200"></canvas>
+  <script type="module" src="/js/debug_main.js"></script>
+</body>
+</html>
