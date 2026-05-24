@@ -119,3 +119,80 @@ describe('ChewDetector: min peak interval', () => {
     expect(d.peaks.length).toBe(1);
   });
 });
+
+describe('ChewDetector: bite tracking', () => {
+  function warmup(d, baseline = 0.10, durationMs = 12000, fps = 30) {
+    const dt = 1000 / fps;
+    for (let t = 0; t < durationMs; t += dt) {
+      d.addSample(t, baseline + 0.001 * Math.sin(t / 100));
+    }
+    return durationMs;
+  }
+
+  function injectPeak(d, centerT) {
+    const dt = 1000 / 30;
+    for (let i = -5; i <= 5; i++) {
+      d.addSample(centerT + i * dt, 0.10 + 0.30 * Math.exp(-(i * i) / 2));
+    }
+    for (let i = 1; i <= 6; i++) {
+      d.addSample(centerT + (5 + i) * dt, 0.10);
+    }
+  }
+
+  it('groups consecutive peaks into one bite, ended by a pause', () => {
+    const d = new ChewDetector({
+      warmupMs: 10000,
+      confirmFrames: 5,
+      k: 1.5,
+      biteEndPauseMs: 1500,
+      minBiteChews: 2,
+    });
+    let t = warmup(d);
+
+    // Bite 1: 4 peaks 500ms apart (within bite)
+    injectPeak(d, t + 500);
+    injectPeak(d, t + 1000);
+    injectPeak(d, t + 1500);
+    injectPeak(d, t + 2000);
+
+    // Pause > biteEndPauseMs (1500ms) by feeding baseline samples
+    const dt = 1000 / 30;
+    for (let ts = t + 2200; ts < t + 4000; ts += dt) {
+      d.addSample(ts, 0.10);
+    }
+
+    // Bite 2: 3 peaks
+    injectPeak(d, t + 4500);
+    injectPeak(d, t + 5000);
+    injectPeak(d, t + 5500);
+
+    // Another pause to close bite 2
+    for (let ts = t + 5700; ts < t + 7500; ts += dt) {
+      d.addSample(ts, 0.10);
+    }
+
+    expect(d.bites.length).toBe(2);
+    expect(d.bites[0].chew_count).toBe(4);
+    expect(d.bites[1].chew_count).toBe(3);
+  });
+
+  it('discards a "bite" with fewer than minBiteChews peaks', () => {
+    const d = new ChewDetector({
+      warmupMs: 10000,
+      confirmFrames: 5,
+      k: 1.5,
+      biteEndPauseMs: 1500,
+      minBiteChews: 2,
+    });
+    let t = warmup(d);
+
+    // Only one peak, then a pause
+    injectPeak(d, t + 500);
+    const dt = 1000 / 30;
+    for (let ts = t + 700; ts < t + 3000; ts += dt) {
+      d.addSample(ts, 0.10);
+    }
+
+    expect(d.bites.length).toBe(0);
+  });
+});

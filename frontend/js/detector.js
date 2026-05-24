@@ -21,6 +21,11 @@ export class ChewDetector {
     this.warmupMs = options.warmupMs ?? 10000;
     this.minValidForThreshold = options.minValidForThreshold ?? 10;
     this.minPeakIntervalMs = options.minPeakIntervalMs ?? 200;
+    this.biteEndPauseMs = options.biteEndPauseMs ?? 1500;
+    this.minBiteChews = options.minBiteChews ?? 2;
+
+    this.bites = []; // {start_ms, end_ms, chew_count}
+    this._currentBite = null; // {start_ms, chews: [t_ms, ...]}
 
     this._samples = [];
     this.peaks = [];
@@ -31,6 +36,7 @@ export class ChewDetector {
     this._samples.push({ t_ms, value: mouth_open, no_face });
     this._pruneOld(t_ms);
     this._tryDetectPeak(t_ms);
+    this._checkBiteEnd(t_ms);
   }
 
   _pruneOld(now_ms) {
@@ -76,5 +82,30 @@ export class ChewDetector {
     }
 
     this.peaks.push({ t_ms: candidate.t_ms });
+    this._registerChew(candidate.t_ms);
+  }
+
+  _registerChew(t_ms) {
+    if (!this._currentBite) {
+      this._currentBite = { start_ms: t_ms, chews: [t_ms] };
+    } else {
+      this._currentBite.chews.push(t_ms);
+    }
+  }
+
+  _checkBiteEnd(now_ms) {
+    if (!this._currentBite) return;
+    const chews = this._currentBite.chews;
+    const lastChew = chews[chews.length - 1];
+    if (now_ms - lastChew < this.biteEndPauseMs) return;
+
+    if (chews.length >= this.minBiteChews) {
+      this.bites.push({
+        start_ms: this._currentBite.start_ms,
+        end_ms: lastChew,
+        chew_count: chews.length,
+      });
+    }
+    this._currentBite = null;
   }
 }
