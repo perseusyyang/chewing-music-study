@@ -1,36 +1,31 @@
 /**
- * Subscribes to MediaPipe FaceMesh results and emits normalized mouth_open
- * samples to a callback.
+ * Subscribes to MediaPipe FaceMesh results and emits per-frame samples.
  *
  * Usage:
- *   const src = new FaceMeshSource(videoEl, (t_ms, mouth_open, no_face) => {...});
+ *   const src = new FaceMeshSource(videoEl, (sample) => {...});
  *   await src.start();
- *   // ... later:
- *   src.stop();
  *
- * Loads FaceMesh from CDN; expects window.FaceMesh and window.Camera
- * (the legacy MediaPipe FaceMesh API) to be available — see index.html
- * for the script tags.
+ * Each sample is { t_ms, mouth_open, jaw_drop, no_face }:
+ *   - mouth_open: normalized vertical lip distance (upper_lip ↔ lower_lip) / face_width
+ *   - jaw_drop:   normalized nose-to-chin distance / face_width  (rises when jaw drops)
+ *   - no_face:    true when MediaPipe lost the face this frame
+ *
+ * Loads FaceMesh from CDN; expects window.FaceMesh and window.Camera to be available.
  */
 const LM_UPPER_LIP_CENTER = 13;
 const LM_LOWER_LIP_CENTER = 14;
 const LM_LEFT_CHEEK = 234;
 const LM_RIGHT_CHEEK = 454;
+const LM_NOSE_TIP = 1;
+const LM_CHIN_TIP = 152;
 
 export class FaceMeshSource {
-  /**
-   * @param {HTMLVideoElement} videoEl
-   * @param {(t_ms:number, mouth_open:number, no_face:boolean) => void} onSample
-   * @param {() => number} now Optional, returns ms since session start
-   */
   constructor(videoEl, onSample, now = () => performance.now()) {
     this.videoEl = videoEl;
     this.onSample = onSample;
     this.now = now;
     this._faceMesh = null;
     this._camera = null;
-    this._lastFaceMs = null;
-    this._noFaceTimeoutMs = 1000;
   }
 
   async start() {
@@ -70,17 +65,23 @@ export class FaceMeshSource {
     const t = this.now();
     const landmarks = res.multiFaceLandmarks && res.multiFaceLandmarks[0];
     if (!landmarks) {
-      this.onSample(t, 0, true);
+      this.onSample({ t_ms: t, mouth_open: 0, jaw_drop: 0, no_face: true });
       return;
     }
     const u = landmarks[LM_UPPER_LIP_CENTER];
     const l = landmarks[LM_LOWER_LIP_CENTER];
     const lc = landmarks[LM_LEFT_CHEEK];
     const rc = landmarks[LM_RIGHT_CHEEK];
+    const n = landmarks[LM_NOSE_TIP];
+    const c = landmarks[LM_CHIN_TIP];
+
     const lipDist = Math.hypot(u.x - l.x, u.y - l.y);
     const faceWidth = Math.hypot(lc.x - rc.x, lc.y - rc.y);
+    const jawDist = Math.hypot(n.x - c.x, n.y - c.y);
+
     const mouth_open = faceWidth > 0 ? lipDist / faceWidth : 0;
-    this._lastFaceMs = t;
-    this.onSample(t, mouth_open, false);
+    const jaw_drop = faceWidth > 0 ? jawDist / faceWidth : 0;
+
+    this.onSample({ t_ms: t, mouth_open, jaw_drop, no_face: false });
   }
 }

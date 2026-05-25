@@ -1,258 +1,249 @@
 import { describe, it, expect } from 'vitest';
 import { ChewDetector } from '../js/detector.js';
 
-describe('ChewDetector: sample buffer', () => {
-  it('stores samples added to it', () => {
-    const d = new ChewDetector({ windowSec: 5 });
-    d.addSample(0, 0.10);
-    d.addSample(100, 0.12);
-    expect(d._samples.length).toBe(2);
-  });
+// Helpers --------------------------------------------------------------------
 
-  it('prunes samples older than windowSec', () => {
+function makeSample(t_ms, mouth_open, jaw_drop, no_face = false) {
+  return { t_ms, mouth_open, jaw_drop, no_face };
+}
+
+// Feed warmup with a flat baseline + tiny noise on both signals.
+function warmup(d, jawBase = 0.60, mouthBase = 0.02, durationMs = 12000, fps = 30) {
+  const dt = 1000 / fps;
+  for (let t = 0; t < durationMs; t += dt) {
+    d.addSample(makeSample(
+      t,
+      mouthBase + 0.001 * Math.sin(t / 100),
+      jawBase + 0.001 * Math.cos(t / 100),
+    ));
+  }
+  return durationMs;
+}
+
+// Inject a gaussian bump on the JAW signal (chew). Mouth stays flat at baseline.
+function injectChew(d, centerT, amp = 0.08, jawBase = 0.60, mouthBase = 0.02) {
+  const dt = 1000 / 30;
+  for (let i = -5; i <= 5; i++) {
+    const ts = centerT + i * dt;
+    const jaw = jawBase + amp * Math.exp(-(i * i) / 2);
+    d.addSample(makeSample(ts, mouthBase, jaw));
+  }
+  // Tail for confirmFrames lookahead
+  for (let i = 1; i <= 6; i++) {
+    const ts = centerT + (5 + i) * dt;
+    d.addSample(makeSample(ts, mouthBase, jawBase));
+  }
+}
+
+// Inject a gaussian bump on the MOUTH signal (bite event). Jaw stays flat.
+function injectBiteEvent(d, centerT, amp = 0.30, jawBase = 0.60, mouthBase = 0.02) {
+  const dt = 1000 / 30;
+  for (let i = -5; i <= 5; i++) {
+    const ts = centerT + i * dt;
+    const mouth = mouthBase + amp * Math.exp(-(i * i) / 2);
+    d.addSample(makeSample(ts, mouth, jawBase));
+  }
+  for (let i = 1; i <= 6; i++) {
+    const ts = centerT + (5 + i) * dt;
+    d.addSample(makeSample(ts, mouthBase, jawBase));
+  }
+}
+
+// Tests ----------------------------------------------------------------------
+
+describe('ChewDetector: sample buffer', () => {
+  it('stores samples and prunes old ones', () => {
     const d = new ChewDetector({ windowSec: 5 });
-    d.addSample(0, 0.10);
-    d.addSample(2000, 0.11);
-    d.addSample(8000, 0.12); // window cutoff = 8000 - 5000 = 3000, drops t=0 and t=2000
+    d.addSample(makeSample(0, 0.02, 0.60));
+    d.addSample(makeSample(2000, 0.02, 0.60));
+    d.addSample(makeSample(8000, 0.02, 0.60));
     expect(d._samples.length).toBe(1);
     expect(d._samples[0].t_ms).toBe(8000);
   });
 });
 
-describe('ChewDetector: peak detection', () => {
-  // Helper: feed N seconds of low-baseline samples at 30fps so window stats are warm
-  function warmup(d, baseline = 0.10, durationMs = 12000, fps = 30) {
-    const dt = 1000 / fps;
-    for (let t = 0; t < durationMs; t += dt) {
-      d.addSample(t, baseline + 0.001 * Math.sin(t / 100)); // tiny noise, no peaks
-    }
-    return durationMs;
-  }
-
-  it('does not register peaks during warmup window', () => {
-    const d = new ChewDetector({ warmupMs: 10000, confirmFrames: 5, k: 1.0 });
-    d.addSample(0, 0.10);
-    d.addSample(33, 0.50);   // big spike, but in warmup
-    d.addSample(66, 0.10);
-    expect(d.peaks.length).toBe(0);
+describe('ChewDetector: chew detection (jaw_drop)', () => {
+  it('does not register chews during warmup', () => {
+    const d = new ChewDetector({ warmupMs: 10000, confirmFrames: 5, k_chew: 1.0 });
+    d.addSample(makeSample(0, 0.02, 0.60));
+    d.addSample(makeSample(33, 0.02, 0.90)); // big spike during warmup
+    d.addSample(makeSample(66, 0.02, 0.60));
+    expect(d.chews.length).toBe(0);
   });
 
-  it('registers a clear local-max peak above adaptive threshold after warmup', () => {
-    const d = new ChewDetector({ warmupMs: 10000, confirmFrames: 5, k: 1.5 });
-    let t = warmup(d);
-    const dt = 1000 / 30;
-    // Inject a sharp peak: baseline ... rise ... peak ... fall ... baseline
-    const peakT = t + 5 * dt;
-    for (let i = -5; i <= 5; i++) {
-      const ts = t + (i + 5) * dt;
-      const value = 0.10 + 0.30 * Math.exp(-(i * i) / 2); // gaussian-ish, max at i=0
-      d.addSample(ts, value);
-    }
-    // Add more baseline frames so the peak (at center) has ≥confirmFrames after it
-    for (let i = 1; i <= 6; i++) {
-      d.addSample(t + (5 + 5 + i) * dt, 0.10);
-    }
-    expect(d.peaks.length).toBe(1);
-    expect(d.peaks[0].t_ms).toBeCloseTo(peakT, 0);
+  it('detects a clear chew peak above threshold after warmup', () => {
+    const d = new ChewDetector({ warmupMs: 10000, confirmFrames: 5, k_chew: 1.5 });
+    const t = warmup(d);
+    injectChew(d, t + 500, 0.08);
+    expect(d.chews.length).toBe(1);
   });
 
-  it('does not register a peak when value is only slightly above mean', () => {
-    const d = new ChewDetector({ warmupMs: 10000, confirmFrames: 5, k: 5 });
-    let t = warmup(d, 0.10);
-    const dt = 1000 / 30;
-    // Tiny bump
-    for (let i = -5; i <= 5; i++) {
-      d.addSample(t + (i + 5) * dt, 0.10 + 0.002 * Math.exp(-(i * i) / 2));
-    }
-    for (let i = 1; i <= 6; i++) {
-      d.addSample(t + (5 + 5 + i) * dt, 0.10);
-    }
-    expect(d.peaks.length).toBe(0);
+  it('does not register a chew when jaw bump is small (sub-threshold)', () => {
+    const d = new ChewDetector({ warmupMs: 10000, confirmFrames: 5, k_chew: 5 });
+    const t = warmup(d);
+    injectChew(d, t + 500, 0.002); // tiny — below k=5 threshold
+    expect(d.chews.length).toBe(0);
   });
 
-  it('ignores samples flagged no_face when computing threshold and peaks', () => {
-    const d = new ChewDetector({ warmupMs: 10000, confirmFrames: 5, k: 1.5 });
-    let t = warmup(d, 0.10);
-    const dt = 1000 / 30;
-    // Inject a huge value but flagged no_face — must not become a peak
-    for (let i = -5; i <= 5; i++) {
-      d.addSample(t + (i + 5) * dt, i === 0 ? 0.90 : 0.10, true);
-    }
-    for (let i = 1; i <= 6; i++) {
-      d.addSample(t + (5 + 5 + i) * dt, 0.10);
-    }
-    expect(d.peaks.length).toBe(0);
-  });
-});
-
-describe('ChewDetector: min peak interval', () => {
-  function warmup(d, baseline = 0.10, durationMs = 12000, fps = 30) {
-    const dt = 1000 / fps;
-    for (let t = 0; t < durationMs; t += dt) {
-      d.addSample(t, baseline + 0.001 * Math.sin(t / 100));
-    }
-    return durationMs;
-  }
-
-  it('drops a peak that occurs within minPeakIntervalMs of the previous peak', () => {
+  it('drops a chew within minChewIntervalMs of the previous chew', () => {
     const d = new ChewDetector({
       warmupMs: 10000,
       confirmFrames: 5,
-      k: 1.5,
-      minPeakIntervalMs: 200,
+      k_chew: 1.5,
+      minChewIntervalMs: 200,
     });
-    let t = warmup(d);
-    const dt = 1000 / 30; // ~33ms
+    const t = warmup(d);
+    injectChew(d, t + 500, 0.08);
+    injectChew(d, t + 600, 0.08); // 100ms after the first — dropped
+    expect(d.chews.length).toBe(1);
+  });
 
-    // Inject two peaks 100ms apart (well under 200ms threshold)
-    function injectPeak(centerT) {
-      for (let i = -5; i <= 5; i++) {
-        d.addSample(centerT + i * dt, 0.10 + 0.30 * Math.exp(-(i * i) / 2));
-      }
-      for (let i = 1; i <= 6; i++) {
-        d.addSample(centerT + (5 + i) * dt, 0.10);
-      }
+  it('ignores no_face samples when computing chew threshold', () => {
+    const d = new ChewDetector({ warmupMs: 10000, confirmFrames: 5, k_chew: 1.5 });
+    const t = warmup(d);
+    const dt = 1000 / 30;
+    // Huge jaw spike but flagged no_face — must not register
+    for (let i = -5; i <= 5; i++) {
+      const ts = t + 500 + i * dt;
+      d.addSample(makeSample(ts, 0.02, i === 0 ? 0.95 : 0.60, true));
     }
-
-    injectPeak(t + 5 * dt);
-    injectPeak(t + 5 * dt + 100); // 100ms later — should be dropped
-    expect(d.peaks.length).toBe(1);
+    for (let i = 1; i <= 6; i++) {
+      d.addSample(makeSample(t + 500 + (5 + i) * dt, 0.02, 0.60));
+    }
+    expect(d.chews.length).toBe(0);
   });
 });
 
-describe('ChewDetector: bite tracking', () => {
-  function warmup(d, baseline = 0.10, durationMs = 12000, fps = 30) {
-    const dt = 1000 / fps;
-    for (let t = 0; t < durationMs; t += dt) {
-      d.addSample(t, baseline + 0.001 * Math.sin(t / 100));
-    }
-    return durationMs;
-  }
-
-  function injectPeak(d, centerT) {
-    const dt = 1000 / 30;
-    for (let i = -5; i <= 5; i++) {
-      d.addSample(centerT + i * dt, 0.10 + 0.30 * Math.exp(-(i * i) / 2));
-    }
-    for (let i = 1; i <= 6; i++) {
-      d.addSample(centerT + (5 + i) * dt, 0.10);
-    }
-  }
-
-  it('groups consecutive peaks into one bite, ended by a pause', () => {
-    const d = new ChewDetector({
-      warmupMs: 10000,
-      confirmFrames: 5,
-      k: 1.5,
-      biteEndPauseMs: 1500,
-      minBiteChews: 2,
-    });
-    let t = warmup(d);
-
-    // Bite 1: 4 peaks 500ms apart (within bite)
-    injectPeak(d, t + 500);
-    injectPeak(d, t + 1000);
-    injectPeak(d, t + 1500);
-    injectPeak(d, t + 2000);
-
-    // Pause > biteEndPauseMs (1500ms) by feeding baseline samples
-    const dt = 1000 / 30;
-    for (let ts = t + 2200; ts < t + 4000; ts += dt) {
-      d.addSample(ts, 0.10);
-    }
-
-    // Bite 2: 3 peaks
-    injectPeak(d, t + 4500);
-    injectPeak(d, t + 5000);
-    injectPeak(d, t + 5500);
-
-    // Another pause to close bite 2
-    for (let ts = t + 5700; ts < t + 7500; ts += dt) {
-      d.addSample(ts, 0.10);
-    }
-
-    expect(d.bites.length).toBe(2);
-    expect(d.bites[0].chew_count).toBe(4);
-    expect(d.bites[1].chew_count).toBe(3);
+describe('ChewDetector: bite event detection (mouth_open)', () => {
+  it('detects a large mouth-open as a bite event', () => {
+    const d = new ChewDetector({ warmupMs: 10000, confirmFrames: 5, k_bite: 3.0 });
+    const t = warmup(d);
+    injectBiteEvent(d, t + 500, 0.30);
+    expect(d.biteEvents.length).toBe(1);
   });
 
-  it('discards a "bite" with fewer than minBiteChews peaks', () => {
-    const d = new ChewDetector({
-      warmupMs: 10000,
-      confirmFrames: 5,
-      k: 1.5,
-      biteEndPauseMs: 1500,
-      minBiteChews: 2,
-    });
-    let t = warmup(d);
-
-    // Only one peak, then a pause
-    injectPeak(d, t + 500);
-    const dt = 1000 / 30;
-    for (let ts = t + 700; ts < t + 3000; ts += dt) {
-      d.addSample(ts, 0.10);
-    }
-
-    expect(d.bites.length).toBe(0);
+  it('does not flag small mouth motion as a bite event', () => {
+    const d = new ChewDetector({ warmupMs: 10000, confirmFrames: 5, k_bite: 3.0 });
+    const t = warmup(d);
+    injectBiteEvent(d, t + 500, 0.002); // tiny — well below k=3.0 threshold
+    expect(d.biteEvents.length).toBe(0);
   });
 });
 
-describe('ChewDetector: finalize and stats', () => {
-  function warmup(d, baseline = 0.10, durationMs = 12000, fps = 30) {
-    const dt = 1000 / fps;
-    for (let t = 0; t < durationMs; t += dt) {
-      d.addSample(t, baseline + 0.001 * Math.sin(t / 100));
-    }
-    return durationMs;
-  }
-
-  function injectPeak(d, centerT) {
-    const dt = 1000 / 30;
-    for (let i = -5; i <= 5; i++) {
-      d.addSample(centerT + i * dt, 0.10 + 0.30 * Math.exp(-(i * i) / 2));
-    }
-    for (let i = 1; i <= 6; i++) {
-      d.addSample(centerT + (5 + i) * dt, 0.10);
-    }
-  }
-
-  it('finalize() closes a still-open bite that had enough chews', () => {
-    const d = new ChewDetector({ warmupMs: 10000, confirmFrames: 5, k: 1.5, minBiteChews: 2 });
-    let t = warmup(d);
-    injectPeak(d, t + 500);
-    injectPeak(d, t + 1000);
-    // No long pause — bite is still open
-    expect(d.bites.length).toBe(0);
-
+describe('ChewDetector: bite session lifecycle', () => {
+  it('groups chews between two bite events into one bite', () => {
+    const d = new ChewDetector({
+      warmupMs: 10000,
+      confirmFrames: 5,
+      k_chew: 1.5,
+      k_bite: 3.0,
+      biteEndPauseMs: 10000, // long, so pause-closing doesn't interfere
+      minBiteChews: 1,
+    });
+    const t = warmup(d);
+    injectBiteEvent(d, t + 500, 0.30);
+    injectChew(d, t + 1500, 0.08);
+    injectChew(d, t + 2000, 0.08);
+    injectChew(d, t + 2500, 0.08);
+    injectBiteEvent(d, t + 4000, 0.30); // closes first bite
+    injectChew(d, t + 5000, 0.08);
+    // No closing — needs finalize or another bite event
     d.finalize();
+    expect(d.bites.length).toBe(2);
+    expect(d.bites[0].chew_count).toBe(3);
+    expect(d.bites[1].chew_count).toBe(1);
+  });
+
+  it('closes a bite when there are no chews for biteEndPauseMs', () => {
+    const d = new ChewDetector({
+      warmupMs: 10000,
+      confirmFrames: 5,
+      k_chew: 1.5,
+      k_bite: 3.0,
+      biteEndPauseMs: 1500,
+      minBiteChews: 1,
+    });
+    const t = warmup(d);
+    injectBiteEvent(d, t + 500, 0.30);
+    injectChew(d, t + 1500, 0.08);
+    injectChew(d, t + 2000, 0.08);
+    // Long pause feeding flat baseline samples
+    const dt = 1000 / 30;
+    for (let ts = t + 2200; ts < t + 5000; ts += dt) {
+      d.addSample(makeSample(ts, 0.02, 0.60));
+    }
     expect(d.bites.length).toBe(1);
     expect(d.bites[0].chew_count).toBe(2);
   });
 
-  it('getStats returns counts, average frequency, and 10s buckets', () => {
-    const d = new ChewDetector({ warmupMs: 0, confirmFrames: 5, k: 1.0, biteEndPauseMs: 1500, minBiteChews: 2 });
-    // Inject 3 peaks in bucket 0 (0-10s), 2 in bucket 1 (10-20s)
-    // Skip warmup by setting warmupMs=0 (then minValidForThreshold gate still applies → feed baseline first)
+  it('discards a bite with fewer than minBiteChews chews', () => {
+    const d = new ChewDetector({
+      warmupMs: 10000,
+      confirmFrames: 5,
+      k_chew: 1.5,
+      k_bite: 3.0,
+      biteEndPauseMs: 1500,
+      minBiteChews: 3,
+    });
+    const t = warmup(d);
+    injectBiteEvent(d, t + 500, 0.30);
+    injectChew(d, t + 1500, 0.08);
+    injectChew(d, t + 2000, 0.08);
+    // Only 2 chews, then pause
     const dt = 1000 / 30;
-    for (let ts = 0; ts < 500; ts += dt) d.addSample(ts, 0.10);
-    injectPeak(d, 1000);
-    injectPeak(d, 2000);
-    injectPeak(d, 3000);
-    // pause to close bite
-    for (let ts = 3500; ts < 11000; ts += dt) d.addSample(ts, 0.10);
-    injectPeak(d, 11500);
-    injectPeak(d, 12500);
-    for (let ts = 13000; ts < 25000; ts += dt) d.addSample(ts, 0.10);
+    for (let ts = t + 2200; ts < t + 5000; ts += dt) {
+      d.addSample(makeSample(ts, 0.02, 0.60));
+    }
+    expect(d.bites.length).toBe(0);
+  });
+
+  it('finalize() closes a still-open bite', () => {
+    const d = new ChewDetector({
+      warmupMs: 10000,
+      confirmFrames: 5,
+      k_chew: 1.5,
+      k_bite: 3.0,
+      biteEndPauseMs: 99999,
+      minBiteChews: 1,
+    });
+    const t = warmup(d);
+    injectBiteEvent(d, t + 500, 0.30);
+    injectChew(d, t + 1500, 0.08);
+    injectChew(d, t + 2000, 0.08);
+    expect(d.bites.length).toBe(0);
+    d.finalize();
+    expect(d.bites.length).toBe(1);
+    expect(d.bites[0].chew_count).toBe(2);
+  });
+});
+
+describe('ChewDetector: getStats', () => {
+  it('returns counts, frequency, and 10s buckets', () => {
+    const d = new ChewDetector({
+      warmupMs: 0,
+      confirmFrames: 5,
+      k_chew: 1.0,
+      k_bite: 3.0,
+      biteEndPauseMs: 1500,
+      minBiteChews: 1,
+    });
+    // Skip warmup gate; feed a brief flat baseline so minValidForThreshold is met
+    const dt = 1000 / 30;
+    for (let ts = 0; ts < 500; ts += dt) d.addSample(makeSample(ts, 0.02, 0.60));
+    injectChew(d, 1000, 0.08);
+    injectChew(d, 2000, 0.08);
+    injectChew(d, 3000, 0.08);
+    for (let ts = 3500; ts < 11000; ts += dt) d.addSample(makeSample(ts, 0.02, 0.60));
+    injectChew(d, 11500, 0.08);
+    injectChew(d, 12500, 0.08);
+    for (let ts = 13000; ts < 25000; ts += dt) d.addSample(makeSample(ts, 0.02, 0.60));
 
     d.finalize();
-
     const stats = d.getStats(25000);
     expect(stats.totalChews).toBe(5);
-    expect(stats.totalBites).toBe(2);
     expect(stats.avgChewFreqHz).toBeCloseTo(5 / 25, 3);
-    expect(stats.avgChewsPerBite).toBeCloseTo(2.5, 3);
-    expect(stats.chewFreqBuckets10s.length).toBe(3); // 0-10, 10-20, 20-25
-    expect(stats.chewFreqBuckets10s[0]).toBeCloseTo(0.3, 3); // 3 peaks / 10s
-    expect(stats.chewFreqBuckets10s[1]).toBeCloseTo(0.2, 3); // 2 peaks / 10s
+    expect(stats.chewFreqBuckets10s.length).toBe(3);
+    expect(stats.chewFreqBuckets10s[0]).toBeCloseTo(0.3, 3);
+    expect(stats.chewFreqBuckets10s[1]).toBeCloseTo(0.2, 3);
   });
 });
