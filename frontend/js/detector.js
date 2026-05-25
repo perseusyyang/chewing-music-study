@@ -22,12 +22,12 @@ export class ChewDetector {
   constructor(options = {}) {
     // Time windows / detection lag
     this.windowSec = options.windowSec ?? 30;
-    this.confirmFrames = options.confirmFrames ?? 5;
-    this.warmupMs = options.warmupMs ?? 10000;
+    this.confirmFrames = options.confirmFrames ?? 3;
+    this.warmupMs = options.warmupMs ?? 3000;
     this.minValidForThreshold = options.minValidForThreshold ?? 10;
 
     // Chew detection (on jaw_drop)
-    this.k_chew = options.k_chew ?? 1.5;
+    this.k_chew = options.k_chew ?? 0.8;
     this.minChewIntervalMs = options.minChewIntervalMs ?? 200;
 
     // Bite-event detection (on mouth_open)

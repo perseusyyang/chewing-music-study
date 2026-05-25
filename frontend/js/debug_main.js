@@ -1,6 +1,32 @@
 import { ChewDetector } from './detector.js';
 import { FaceMeshSource } from './face_source.js';
 
+function readDetectorOptions() {
+  const params = new URLSearchParams(window.location.search);
+  const num = (key) => {
+    const v = params.get(key);
+    return v === null ? undefined : Number(v);
+  };
+  const opts = {};
+  for (const key of [
+    'windowSec', 'confirmFrames', 'warmupMs', 'minValidForThreshold',
+    'k_chew', 'minChewIntervalMs',
+    'k_bite', 'minBiteEventIntervalMs',
+    'biteEndPauseMs', 'minBiteChews',
+  ]) {
+    const v = num(key);
+    if (v !== undefined && !Number.isNaN(v)) opts[key] = v;
+  }
+  return opts;
+}
+
+const usedOpts = (() => {
+  const params = new URLSearchParams(window.location.search);
+  const pairs = [];
+  for (const [k, v] of params) pairs.push(`${k}=${v}`);
+  return pairs.join(' ');
+})();
+
 const videoEl = document.getElementById('cam');
 const mEl = document.getElementById('m');
 const jEl = document.getElementById('j');
@@ -12,7 +38,8 @@ const chart = document.getElementById('chart');
 const ctx = chart.getContext('2d');
 
 const t0 = performance.now();
-const detector = new ChewDetector();
+const detectorOpts = readDetectorOptions();
+const detector = new ChewDetector(detectorOpts);
 const history = []; // {t_ms, mouth_open, jaw_drop, no_face}
 const HISTORY_MS = 20000;
 
@@ -89,6 +116,13 @@ const src = new FaceMeshSource(videoEl, (sample) => {
   bEl.textContent = detector.bites.length;
   nfEl.textContent = sample.no_face ? 'yes' : 'no';
 }, () => performance.now());
+
+if (usedOpts) {
+  const tag = document.createElement('div');
+  tag.style.cssText = 'font-family: monospace; font-size: 0.8rem; color: #666; margin-top: 0.5rem;';
+  tag.textContent = `options: ${usedOpts}`;
+  document.body.insertBefore(tag, chart);
+}
 
 (async () => {
   await src.start();
