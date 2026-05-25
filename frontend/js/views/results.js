@@ -1,4 +1,5 @@
 import { session, resetSession } from '../state.js';
+import { uploadSession } from '../api.js';
 
 const FOOD_LABELS = {
   chinese: 'Chinese',
@@ -39,11 +40,56 @@ export function mountResults(router) {
   renderFreqChart(s.chewFreqBuckets10s);
   renderBitesChart(session.bites);
 
+  const uploadBtn = document.getElementById('upload-btn');
+  const uploadStatus = document.getElementById('upload-status');
+  uploadBtn.addEventListener('click', async () => {
+    uploadBtn.disabled = true;
+    uploadStatus.textContent = 'Uploading…';
+    try {
+      const payload = buildPayload();
+      const result = await uploadSession(payload);
+      uploadStatus.textContent =
+        result.status === 'already_uploaded'
+          ? 'Already uploaded earlier. Thank you!'
+          : 'Uploaded — thank you for participating!';
+    } catch (e) {
+      uploadStatus.textContent = 'Upload failed: ' + e.message;
+      uploadBtn.disabled = false;
+    }
+  });
+
   const againBtn = document.getElementById('again-btn');
   againBtn.addEventListener('click', () => {
     resetSession();
     router.navigate('/setup');
   });
+}
+
+function buildPayload() {
+  const s = session.stats;
+  return {
+    session_id: session.session_id,
+    started_at: session.started_at,
+    ended_at: session.ended_at,
+    duration_sec: session.duration_sec,
+    food_type: session.food_type,
+    music_genre: session.music_genre,
+    tracks_played: session.tracks_played,
+    total_chews: s.totalChews,
+    total_bite_events: s.totalBiteEvents,
+    total_bites: s.totalBites,
+    avg_chew_freq_hz: s.avgChewFreqHz,
+    avg_chews_per_bite: s.avgChewsPerBite,
+    chew_freq_buckets_10s: s.chewFreqBuckets10s,
+    bites: session.bites,
+    chew_events_ms: session.chew_events_ms.map((t) => Math.round(t)),
+    bite_events_ms: session.bite_events_ms.map((t) => Math.round(t)),
+    client_info: {
+      user_agent: navigator.userAgent,
+      viewport: `${window.innerWidth}x${window.innerHeight}`,
+      fps_observed: 0,
+    },
+  };
 }
 
 function formatDuration(sec) {
