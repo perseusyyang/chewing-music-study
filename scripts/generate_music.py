@@ -1,19 +1,27 @@
 """Generate background music tracks using MusicGen and save as MP3 + manifest.
 
 Usage:
-    python scripts/generate_music.py --genre classical --count 10 --duration 45
-    python scripts/generate_music.py --genre hiphop --count 10 --duration 45
+    python scripts/generate_music.py --genre classical --count 10 --duration 30
+    python scripts/generate_music.py --genre hiphop --count 10 --duration 30
 
-Requires a GPU (or be patient on CPU). Output goes to
-backend/music/<genre>/cl_NN.mp3 (or hh_NN.mp3) along with manifest.json.
+Uses Hugging Face transformers for MusicGen — works on Apple Silicon (MPS),
+NVIDIA (CUDA), or CPU (slow). Output goes to backend/music/<genre>/<id>.mp3
+along with manifest.json.
 
-This script is intentionally separate from the web service.
+This script is intentionally separate from the web service; run on the
+researcher's workstation, then commit/copy the resulting MP3s.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import tempfile
 from pathlib import Path
+
+import soundfile as sf
+import torch
+from pydub import AudioSegment
+from transformers import AutoProcessor, MusicgenForConditionalGeneration
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -45,43 +53,65 @@ GENRE_CONFIG = {
 }
 
 
+def pick_device() -> str:
+    if torch.backends.mps.is_available():
+        return "mps"
+    if torch.cuda.is_available():
+        return "cuda"
+    return "cpu"
+
+
 def generate(genre: str, count: int, duration: int, model_name: str) -> None:
     if genre not in GENRE_CONFIG:
         raise SystemExit(f"Unknown genre {genre!r}; use one of {list(GENRE_CONFIG)}")
-
-    try:
-        from audiocraft.models import MusicGen
-        from audiocraft.data.audio import audio_write
-    except ImportError as e:
-        raise SystemExit(
-            "audiocraft is not installed. Run: pip install -r scripts/requirements.txt"
-        ) from e
 
     cfg = GENRE_CONFIG[genre]
     out_dir = MUSIC_DIR / genre
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Loading MusicGen model: {model_name}")
-    model = MusicGen.get_pretrained(model_name)
-    model.set_generation_params(duration=duration)
+    device = pick_device()
+    print(f"Loading MusicGen ({model_name}) on {device}")
+    processor = AutoProcessor.from_pretrained(model_name)
+    model = MusicgenForConditionalGeneration.from_pretrained(model_name).to(device)
+    sample_rate = model.config.audio_encoder.sampling_rate  # 32000
+
+    # MusicGen generates ~50 audio tokens per second.
+    max_new_tokens = duration * 50
 
     manifest = []
     for i in range(1, count + 1):
         prompt = cfg["prompts"][(i - 1) % len(cfg["prompts"])]
-        filename = f"{cfg['prefix']}_{i:02d}"
-        out_path = out_dir / filename
-        print(f"[{i}/{count}] {filename}: {prompt[:60]}...")
-        wav = model.generate([prompt])
-        audio_write(
-            str(out_path),
-            wav[0].cpu(),
-            model.sample_rate,
-            strategy="loudness",
+        track_id = f"{cfg['prefix']}_{i:02d}"
+        print(f"[{i}/{count}] {track_id}: {prompt[:60]}...")
+
+        inputs = processor(text=[prompt], padding=True, return_tensors="pt").to(device)
+        with torch.no_grad():
+            audio_values = model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens,
+                do_sample=True,
+                guidance_scale=3.0,
+            )
+
+        # audio_values: [batch=1, channels=1, samples] — flatten to 1-D mono samples
+        wav = audio_values[0].cpu().numpy()
+        if wav.ndim == 2:
+            wav = wav.mean(axis=0)  # mix to mono if MusicGen ever returns multi-channel
+
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            tmp_path = tmp.name
+        sf.write(tmp_path, wav, sample_rate)
+
+        AudioSegment.from_wav(tmp_path).export(
+            str(out_dir / f"{track_id}.mp3"),
             format="mp3",
+            bitrate="128k",
         )
+        Path(tmp_path).unlink()
+
         manifest.append({
-            "id": filename,
-            "filename": f"{filename}.mp3",
+            "id": track_id,
+            "filename": f"{track_id}.mp3",
             "title": cfg["title_fmt"].format(n=i),
             "duration_sec": duration,
         })
@@ -92,13 +122,15 @@ def generate(genre: str, count: int, duration: int, model_name: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate music with MusicGen")
+    parser = argparse.ArgumentParser(description="Generate music with MusicGen (transformers)")
     parser.add_argument("--genre", required=True, choices=list(GENRE_CONFIG))
     parser.add_argument("--count", type=int, default=10)
-    parser.add_argument("--duration", type=int, default=45,
-                        help="Seconds per track (MusicGen max ~30; longer may be chunked)")
-    parser.add_argument("--model", default="facebook/musicgen-small",
-                        help="MusicGen model name (small/medium/large)")
+    parser.add_argument("--duration", type=int, default=30, help="Seconds per track")
+    parser.add_argument(
+        "--model",
+        default="facebook/musicgen-small",
+        help="HF model id (facebook/musicgen-small|medium|large)",
+    )
     args = parser.parse_args()
     generate(args.genre, args.count, args.duration, args.model)
 
