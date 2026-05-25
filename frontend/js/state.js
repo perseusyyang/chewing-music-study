@@ -23,6 +23,12 @@ export const session = {
   bites: [], // [{start_ms, end_ms, chew_count}]
   chew_events_ms: [], // [t_ms]
   bite_events_ms: [], // [t_ms]
+  // Pre-fetched on setup page so recording.js doesn't need to await the network
+  // (which would break iOS Safari's user-gesture window before audio.play()).
+  playlist: null,
+  // Audio element pre-unlocked synchronously inside the Start-button click, so
+  // subsequent .play() calls work on iOS Safari without re-entering a gesture.
+  audioEl: null,
 };
 
 export function resetSession() {
@@ -38,4 +44,6 @@ export function resetSession() {
   session.bites = [];
   session.chew_events_ms = [];
   session.bite_events_ms = [];
+  session.playlist = null;
+  session.audioEl = null;
 }

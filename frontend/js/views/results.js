@@ -81,7 +81,11 @@ function buildPayload() {
     avg_chew_freq_hz: s.avgChewFreqHz,
     avg_chews_per_bite: s.avgChewsPerBite,
     chew_freq_buckets_10s: s.chewFreqBuckets10s,
-    bites: session.bites,
+    bites: session.bites.map((b) => ({
+      start_ms: Math.round(b.start_ms),
+      end_ms: Math.round(b.end_ms),
+      chew_count: b.chew_count,
+    })),
     chew_events_ms: session.chew_events_ms.map((t) => Math.round(t)),
     bite_events_ms: session.bite_events_ms.map((t) => Math.round(t)),
     client_info: {

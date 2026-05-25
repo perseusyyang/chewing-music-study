@@ -24,15 +24,18 @@ export async function mountRecording(router) {
   const statusText = document.getElementById('status-text');
   const trackTitleEl = document.getElementById('track-title');
 
-  // Fetch playlist first so we don't start the camera before audio is ready
-  let playlist;
-  try {
-    const data = await fetchPlaylist(session.music_genre);
-    playlist = data.tracks;
-  } catch (e) {
-    statusText.textContent = 'Failed to load music: ' + e.message;
-    statusDot.classList.add('red');
-    return;
+  // Prefer the playlist pre-fetched on the setup page; fall back to fetching now
+  // (e.g. if the user changed genre AFTER the setup-page prefetch fired).
+  let playlist = session.playlist;
+  if (!playlist) {
+    try {
+      const data = await fetchPlaylist(session.music_genre);
+      playlist = data.tracks;
+    } catch (e) {
+      statusText.textContent = 'Failed to load music: ' + e.message;
+      statusDot.classList.add('red');
+      return;
+    }
   }
   if (!playlist.length) {
     statusText.textContent = 'No music available for this genre.';
@@ -49,8 +52,9 @@ export async function mountRecording(router) {
   statusDot.classList.add('green');
   statusText.textContent = 'Detecting…';
 
-  // Start audio
-  const audio = new Audio();
+  // Reuse the audio element unlocked on the setup page (iOS Safari user-gesture
+  // requirement). Fall back to a fresh one for browsers that don't need this.
+  const audio = session.audioEl || new Audio();
   player = new PlaylistPlayer(audio, playlist, `/music/${session.music_genre}/`, {
     onTrack: (track) => { trackTitleEl.textContent = track.title; },
   });
