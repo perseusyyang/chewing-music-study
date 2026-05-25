@@ -32,10 +32,10 @@ GENRE_CONFIG = {
         "prefix": "cl",
         "prompts": [
             "Solo piano in the style of Erik Satie — sparse, simple, melancholic but peaceful. Slow tempo around 70 BPM. Single melodic line with gentle pauses and breathing space between phrases. Soft left-hand bass notes underneath, light mid-range chords. No sustained pads, no strings, no other instruments, no background noise or hum. Mid-low register, intimate, contemplative. Clean studio recording, dry acoustic piano sound.",
-            "Calm baroque cello and harpsichord. Slow tempo, contemplative mood, very quiet dynamics.",
-            "Tender solo piano nocturne, gentle melody, slow flowing rhythm, low energy.",
-            "Soft string quartet adagio. Sustained notes, peaceful, dreamy, low volume.",
-            "Quiet acoustic guitar and flute duet. Folk-influenced classical style, gentle slow tempo.",
+            "Calm classical wind chamber duet — clarinet and bassoon playing together. Warm, wooden, mellow tones; both instruments in the mid-low register. Soft melodic phrasing with natural breathing pauses between phrases. The bassoon plays a gentle moving bass line while the clarinet weaves a flowing melodic line on top. Both instruments continuously play varied notes — never a single sustained held tone. No piano, no strings, no high-pitched instruments, no drones, no sustained pads, no hum. Around 60 BPM, peaceful and intimate, like a slow movement from a Mozart wind serenade. Clean studio recording.",
+            "Tender solo piano nocturne in a Chopin-like style. Gentle melodic line with flowing left-hand arpeggios in the mid-low register. Quiet dynamics, around 65 BPM, melancholic and peaceful. No other instruments, no sustained pads, no background hum. Clean studio recording, acoustic piano.",
+            "Baroque string ensemble in the harmonic style of Pachelbel's Canon in D. Cello plays a moving walking bass line stepping through the canonical chord progression, while viola and mid-register violin take turns playing flowing melodic variations on top — continuous melodic motion at all times, never a held note. Multi-voice counterpoint, warm and reassuring. Around 60 BPM, mid-low register dominant, no shrill high violins, no static drones, no sustained background pads, no hum. Clean studio recording.",
+            "Quiet solo classical guitar fingerpicking. Sparse arpeggios in the mid-low register, gentle and melancholic. No other instruments, no sustained pads, no background hum. Slow tempo around 60 BPM, intimate, clean studio recording.",
         ],
         "title_fmt": "Classical #{n}",
     },
@@ -61,7 +61,7 @@ def pick_device() -> str:
     return "cpu"
 
 
-def generate(genre: str, count: int, duration: int, model_name: str) -> None:
+def generate(genre: str, count: int, duration: int, model_name: str, only: set[int] | None = None) -> None:
     if genre not in GENRE_CONFIG:
         raise SystemExit(f"Unknown genre {genre!r}; use one of {list(GENRE_CONFIG)}")
 
@@ -80,6 +80,8 @@ def generate(genre: str, count: int, duration: int, model_name: str) -> None:
 
     manifest = []
     for i in range(1, count + 1):
+        if only is not None and i not in only:
+            continue
         prompt = cfg["prompts"][(i - 1) % len(cfg["prompts"])]
         track_id = f"{cfg['prefix']}_{i:02d}"
         print(f"[{i}/{count}] {track_id}: {prompt[:60]}...")
@@ -116,9 +118,12 @@ def generate(genre: str, count: int, duration: int, model_name: str) -> None:
             "duration_sec": duration,
         })
 
-    manifest_path = out_dir / "manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2))
-    print(f"Wrote {len(manifest)} tracks and manifest to {out_dir}")
+    if only is None:
+        manifest_path = out_dir / "manifest.json"
+        manifest_path.write_text(json.dumps(manifest, indent=2))
+        print(f"Wrote {len(manifest)} tracks and manifest to {out_dir}")
+    else:
+        print(f"Wrote {len(manifest)} track(s); manifest left unchanged (--only set)")
 
 
 def main() -> None:
@@ -131,8 +136,15 @@ def main() -> None:
         default="facebook/musicgen-small",
         help="HF model id (facebook/musicgen-small|medium|large)",
     )
+    parser.add_argument(
+        "--only",
+        default="",
+        help="Comma-separated 1-based indices to (re)generate (e.g. '2,4'). "
+             "When set, manifest.json is left unchanged so existing tracks are preserved.",
+    )
     args = parser.parse_args()
-    generate(args.genre, args.count, args.duration, args.model)
+    only = {int(x) for x in args.only.split(",") if x.strip()} or None
+    generate(args.genre, args.count, args.duration, args.model, only)
 
 
 if __name__ == "__main__":
