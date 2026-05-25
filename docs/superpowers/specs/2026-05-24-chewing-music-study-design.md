@@ -85,41 +85,48 @@ scripts/generate_music.py
 - "上传匿名结果"按钮（点了发 POST，成功后变成"已上传，感谢配合"）
 - "再来一次"按钮 → 回到选择页
 
-## 5. 咀嚼检测算法
+## 5. 咀嚼检测算法（双信号）
 
 **输入：** MediaPipe FaceMesh 每帧给出的 478 个 3D 面部 landmarks。
 
-**核心特征：归一化嘴开口度**
+**用户测试发现：** 单看上下嘴唇距离 `mouth_open` 几乎检测不到闭嘴咀嚼 — 真实咀嚼时嘴唇基本不动，下颌却在节奏性运动。因此采用**双信号**：
+
 ```
-mouth_open(t) = |landmark_upper_lip_center - landmark_lower_lip_center| / face_width
+mouth_open(t) = |landmark_13 - landmark_14| / face_width   // 上下嘴唇中心距离
+jaw_drop(t)   = |landmark_1  - landmark_152| / face_width  // 鼻尖 → 下颌尖
+face_width    = |landmark_234 - landmark_454|              // 左脸颊 ↔ 右脸颊（归一化基准）
 ```
-- `upper_lip_center` ≈ landmark 13；`lower_lip_center` ≈ landmark 14（待实测确认）
-- `face_width` = 左脸颊到右脸颊（如 landmark 234 和 454 的距离），用于消除"用户离手机远近"的影响
 
-**采样率：** 浏览器 `requestVideoFrameCallback`，预期 ~30fps。如设备性能不足，降级到 `requestAnimationFrame` 限频到 15fps。
+- `mouth_open` 对"嘴大开"敏感 — 检测**bite event**（吃下一口的瞬间）
+- `jaw_drop` 对下颌振荡敏感（闭嘴也有信号）— 检测**chew**（每次咀嚼）
 
-**算法：自适应阈值峰值检测**
+**采样率：** 浏览器 MediaPipe `Camera.onFrame`，约 30fps。
 
-1. **滑动统计窗口：** 保留最近 30 秒的 `mouth_open` 样本，持续更新均值 μ 和标准差 σ
-2. **峰值条件：** 当前帧的 `mouth_open` 满足
-   - 大于 μ + k·σ（k 初始 = 1.5，可在 config 里调）
-   - 是局部极大值（前 5 帧与后 5 帧都比它小）→ 实现上做 5 帧延迟的实时检测
-   - 距离上一个已记录峰值 ≥ 200ms（5Hz 上限，超过这个就是误检）
-3. **暖机：** 前 10 秒不报峰值，让滑动统计有意义；UI 状态灯先黄后绿
+**两个独立的自适应阈值峰值检测器并行跑。** 对每个信号：
 
-**每口咀嚼数：每口由停顿划分**
-- 维护"当前口"计数器
-- 每检测到一个峰值，"当前口"+1
-- 如果已经 ≥ 1.5 秒没有新峰值，且"当前口" ≥ 2，则结束当前口：把它加入 `bites` 列表，重置计数器
-- 如果"当前口" < 2 个峰值就停顿了，视为噪声/误检，不算一口（也不计入总数）
+1. **滑动统计窗口**：保留最近 `windowSec`（默认 30 秒）的样本，持续更新均值 μ 和标准差 σ
+2. **峰值条件**：当前帧的信号值
+   - 大于 μ + k·σ（chew 检测 `k_chew = 0.5`；bite event 检测 `k_bite = 3.0`）
+   - 是局部极大值（前 `confirmFrames` 帧与后 `confirmFrames` 帧都比它小，默认 3 帧 ≈ 100ms 延迟）
+   - 距上一个同类型峰值 ≥ 最小间隔（chew 175ms，bite event 1000ms）
+3. **暖机**：默认 0ms。`minValidForThreshold`（默认 10 样本，~333ms）保证有足够数据计算阈值，不需要额外暖机时间。
+
+**Bite session 生命周期：**
+- 一个 bite = 两个 bite event 之间（或会话开始/结束）的 chew 序列
+- 每个 bite event **关闭**前一个 bite 并**开始**新的
+- 如果 ≥ `biteEndPauseMs`（默认 3 秒）没有新 chew，当前 bite 也关闭
+- chew 数 < `minBiteChews`（默认 1）的 bite 视为噪声丢弃
 
 **实时频率指标（仅用于结果页计算，录制中不显示）：**
-- 每 10 秒一个 bucket，bucket 内的峰值数 ÷ 10 = 该 bucket 的 Hz
-- 全段平均频率 = 总峰值数 ÷ 总时长
+- 每 10 秒一个 bucket，bucket 内的 chew 数 ÷ 10 = 该 bucket 的 Hz
+- 全段平均频率 = 总 chew 数 ÷ 总时长
 
-**降级与异常：**
-- 若 FaceMesh 连续 > 1 秒检测不到面部：状态灯转红，时间序列里这段标记 `no_face=true`，不计入峰值检测窗口
-- 若摄像头权限被拒：录制页显示错误，不允许进入录制
+**异常处理：**
+- FaceMesh 检测不到面部的帧标记 `no_face=true`，不参与阈值统计也不产生峰值
+- 摄像头权限被拒：录制页显示错误，不允许进入录制
+
+**调试与调参：** `/debug.html` 支持 URL 参数实时覆盖任意默认值，例如：
+`?k_chew=0.5&warmupMs=0&confirmFrames=3&minChewIntervalMs=175`。同时可视化两条信号 + chew 红点 + bite event 绿三角，供研究者根据实际数据继续调参。
 
 ## 6. 后端：API 和数据模型
 
