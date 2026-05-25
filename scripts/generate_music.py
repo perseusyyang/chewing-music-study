@@ -31,7 +31,7 @@ GENRE_CONFIG = {
     "classical": {
         "prefix": "cl",
         "prompts": [
-            "Slow, gentle classical chamber music. Soft piano with light strings. Low volume, peaceful, relaxing, no percussion. Around 60 BPM.",
+            "Solo piano in the style of Erik Satie — sparse, simple, melancholic but peaceful. Slow tempo around 70 BPM. Single melodic line with gentle pauses and breathing space between phrases. Soft left-hand bass notes underneath, light mid-range chords. No sustained pads, no strings, no other instruments, no background noise or hum. Mid-low register, intimate, contemplative. Clean studio recording, dry acoustic piano sound.",
             "Calm baroque cello and harpsichord. Slow tempo, contemplative mood, very quiet dynamics.",
             "Tender solo piano nocturne, gentle melody, slow flowing rhythm, low energy.",
             "Soft string quartet adagio. Sustained notes, peaceful, dreamy, low volume.",
@@ -105,7 +105,7 @@ def generate(genre: str, count: int, duration: int, model_name: str) -> None:
         AudioSegment.from_wav(tmp_path).export(
             str(out_dir / f"{track_id}.mp3"),
             format="mp3",
-            bitrate="128k",
+            bitrate="192k",
         )
         Path(tmp_path).unlink()
 
