@@ -490,7 +490,7 @@ describe('ChewDetector: peak detection', () => {
   });
 
   it('does not register a peak when value is only slightly above mean', () => {
-    const d = new ChewDetector({ warmupMs: 10000, confirmFrames: 5, k: 1.5 });
+    const d = new ChewDetector({ warmupMs: 10000, confirmFrames: 5, k: 5 });
     let t = warmup(d, 0.10);
     const dt = 1000 / 30;
     // Tiny bump
@@ -647,7 +647,7 @@ describe('ChewDetector: min peak interval', () => {
     const d = new ChewDetector({
       warmupMs: 10000,
       confirmFrames: 5,
-      k: 1.0,
+      k: 1.5,
       minPeakIntervalMs: 200,
     });
     let t = warmup(d);
@@ -745,7 +745,7 @@ describe('ChewDetector: bite tracking', () => {
     const d = new ChewDetector({
       warmupMs: 10000,
       confirmFrames: 5,
-      k: 1.0,
+      k: 1.5,
       biteEndPauseMs: 1500,
       minBiteChews: 2,
     });
@@ -782,7 +782,7 @@ describe('ChewDetector: bite tracking', () => {
     const d = new ChewDetector({
       warmupMs: 10000,
       confirmFrames: 5,
-      k: 1.0,
+      k: 1.5,
       biteEndPauseMs: 1500,
       minBiteChews: 2,
     });
@@ -909,7 +909,7 @@ describe('ChewDetector: finalize and stats', () => {
   }
 
   it('finalize() closes a still-open bite that had enough chews', () => {
-    const d = new ChewDetector({ warmupMs: 10000, confirmFrames: 5, k: 1.0, minBiteChews: 2 });
+    const d = new ChewDetector({ warmupMs: 10000, confirmFrames: 5, k: 1.5, minBiteChews: 2 });
     let t = warmup(d);
     injectPeak(d, t + 500);
     injectPeak(d, t + 1000);
