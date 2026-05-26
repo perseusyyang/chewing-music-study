@@ -1,4 +1,62 @@
 [
-  {"id": "cl_01", "filename": "cl_01.mp3", "title": "Placeholder Classical 1", "duration_sec": 30},
-  {"id": "cl_02", "filename": "cl_02.mp3", "title": "Placeholder Classical 2", "duration_sec": 30}
+  {
+    "id": "cl_01",
+    "filename": "cl_01.mp3",
+    "title": "Classical #1",
+    "duration_sec": 30
+  },
+  {
+    "id": "cl_02",
+    "filename": "cl_02.mp3",
+    "title": "Classical #2",
+    "duration_sec": 30
+  },
+  {
+    "id": "cl_03",
+    "filename": "cl_03.mp3",
+    "title": "Classical #3",
+    "duration_sec": 30
+  },
+  {
+    "id": "cl_04",
+    "filename": "cl_04.mp3",
+    "title": "Classical #4",
+    "duration_sec": 30
+  },
+  {
+    "id": "cl_05",
+    "filename": "cl_05.mp3",
+    "title": "Classical #5",
+    "duration_sec": 30
+  },
+  {
+    "id": "cl_06",
+    "filename": "cl_06.mp3",
+    "title": "Classical #6",
+    "duration_sec": 30
+  },
+  {
+    "id": "cl_07",
+    "filename": "cl_07.mp3",
+    "title": "Classical #7",
+    "duration_sec": 30
+  },
+  {
+    "id": "cl_08",
+    "filename": "cl_08.mp3",
+    "title": "Classical #8",
+    "duration_sec": 30
+  },
+  {
+    "id": "cl_09",
+    "filename": "cl_09.mp3",
+    "title": "Classical #9",
+    "duration_sec": 30
+  },
+  {
+    "id": "cl_10",
+    "filename": "cl_10.mp3",
+    "title": "Classical #10",
+    "duration_sec": 30
+  }
 ]

@@ -1,4 +1,62 @@
 [
-  {"id": "hh_01", "filename": "hh_01.mp3", "title": "Placeholder Hip-hop 1", "duration_sec": 30},
-  {"id": "hh_02", "filename": "hh_02.mp3", "title": "Placeholder Hip-hop 2", "duration_sec": 30}
+  {
+    "id": "hh_01",
+    "filename": "hh_01.mp3",
+    "title": "Hip-hop #1",
+    "duration_sec": 30
+  },
+  {
+    "id": "hh_02",
+    "filename": "hh_02.mp3",
+    "title": "Hip-hop #2",
+    "duration_sec": 30
+  },
+  {
+    "id": "hh_03",
+    "filename": "hh_03.mp3",
+    "title": "Hip-hop #3",
+    "duration_sec": 30
+  },
+  {
+    "id": "hh_04",
+    "filename": "hh_04.mp3",
+    "title": "Hip-hop #4",
+    "duration_sec": 30
+  },
+  {
+    "id": "hh_05",
+    "filename": "hh_05.mp3",
+    "title": "Hip-hop #5",
+    "duration_sec": 30
+  },
+  {
+    "id": "hh_06",
+    "filename": "hh_06.mp3",
+    "title": "Hip-hop #6",
+    "duration_sec": 30
+  },
+  {
+    "id": "hh_07",
+    "filename": "hh_07.mp3",
+    "title": "Hip-hop #7",
+    "duration_sec": 30
+  },
+  {
+    "id": "hh_08",
+    "filename": "hh_08.mp3",
+    "title": "Hip-hop #8",
+    "duration_sec": 30
+  },
+  {
+    "id": "hh_09",
+    "filename": "hh_09.mp3",
+    "title": "Hip-hop #9",
+    "duration_sec": 30
+  },
+  {
+    "id": "hh_10",
+    "filename": "hh_10.mp3",
+    "title": "Hip-hop #10",
+    "duration_sec": 30
+  }
 ]
