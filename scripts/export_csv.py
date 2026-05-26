@@ -1,20 +1,29 @@
-"""Export sessions from SQLite into two CSVs for analysis.
+"""Export sessions from SQLite or PostgreSQL into two CSVs for analysis.
 
 Outputs to the current working directory:
 - sessions_summary.csv: one row per session, with aggregate fields
 - bites_long.csv: one row per bite (long format), suitable for pandas / R
 
 Usage:
+    # Local SQLite (default path)
     python scripts/export_csv.py
+
+    # Explicit SQLite path
     python scripts/export_csv.py --db backend/data/sessions.db --out-dir ./
+
+    # Production Postgres (Neon) — via flag or DATABASE_URL env var
+    python scripts/export_csv.py --db postgresql://user:pass@host/db
+    DATABASE_URL=postgresql://... python scripts/export_csv.py
 """
 from __future__ import annotations
 
 import argparse
 import csv
 import json
+import os
 import sqlite3
 from pathlib import Path
+from typing import Iterator
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -29,9 +38,34 @@ SUMMARY_COLUMNS = [
 ]
 
 
-def export(db_path: Path, out_dir: Path) -> None:
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+def _iter_rows(conn_arg: str | Path) -> Iterator[dict]:
+    """Yield session rows as dicts; dispatch on Postgres URL vs filesystem path."""
+    s = str(conn_arg)
+    if s.startswith(("postgres://", "postgresql://")):
+        import psycopg2
+        import psycopg2.extras
+
+        if s.startswith("postgres://"):
+            s = s.replace("postgres://", "postgresql://", 1)
+        conn = psycopg2.connect(s)
+        try:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT * FROM sessions ORDER BY uploaded_at")
+                for row in cur:
+                    yield dict(row)
+        finally:
+            conn.close()
+    else:
+        conn = sqlite3.connect(conn_arg)
+        conn.row_factory = sqlite3.Row
+        try:
+            for row in conn.execute("SELECT * FROM sessions ORDER BY uploaded_at"):
+                yield dict(row)
+        finally:
+            conn.close()
+
+
+def export(conn_arg: str | Path, out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     summary_path = out_dir / "sessions_summary.csv"
@@ -46,7 +80,7 @@ def export(db_path: Path, out_dir: Path) -> None:
             "start_ms", "end_ms", "chew_count",
         ])
 
-        for row in conn.execute("SELECT * FROM sessions ORDER BY uploaded_at"):
+        for row in _iter_rows(conn_arg):
             tracks_played = json.loads(row["tracks_played_json"])
             s_writer.writerow([
                 row["session_id"], row["uploaded_at"], row["started_at"], row["ended_at"],
@@ -64,17 +98,27 @@ def export(db_path: Path, out_dir: Path) -> None:
 
     print(f"Wrote {summary_path}")
     print(f"Wrote {bites_path}")
-    conn.close()
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--db", type=Path, default=DEFAULT_DB)
+    parser.add_argument(
+        "--db",
+        default=os.environ.get("DATABASE_URL"),
+        help="SQLite filesystem path or PostgreSQL URL. "
+             "Defaults to $DATABASE_URL if set, otherwise local SQLite.",
+    )
     parser.add_argument("--out-dir", type=Path, default=Path("."))
     args = parser.parse_args()
-    if not args.db.exists():
-        raise SystemExit(f"DB not found: {args.db}")
-    export(args.db, args.out_dir)
+
+    conn_arg: str | Path = args.db or DEFAULT_DB
+    if not str(conn_arg).startswith(("postgres://", "postgresql://")):
+        path = Path(conn_arg)
+        if not path.exists():
+            raise SystemExit(f"DB not found: {path}")
+        conn_arg = path
+
+    export(conn_arg, args.out_dir)
 
 
 if __name__ == "__main__":

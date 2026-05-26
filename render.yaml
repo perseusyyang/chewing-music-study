@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: chewing-music-study
+    runtime: python
+    plan: free
+    # Editable install keeps app/ source files in place so main.py's
+    # PROJECT_ROOT = Path(__file__).resolve().parents[2] still resolves
+    # to the repo root, which is needed to mount /music and / static dirs.
+    buildCommand: pip install -e ./backend
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: DATABASE_URL
+        sync: false   # set manually in the Render dashboard to the Neon URL

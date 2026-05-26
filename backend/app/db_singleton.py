@@ -1,4 +1,5 @@
-"""Lazy SQLite singleton so the FastAPI app uses one connection per process."""
+"""Lazy DB singleton — SQLite locally, PostgreSQL in production via DATABASE_URL."""
+import os
 from pathlib import Path
 
 from app.db import Database
@@ -13,5 +14,8 @@ _db: Database | None = None
 def get_db() -> Database:
     global _db
     if _db is None:
-        _db = Database(DB_PATH)
+        # DATABASE_URL takes precedence — used in production (Render + Neon).
+        # Falls back to local SQLite at DB_PATH so dev/tests need no env setup.
+        conn: str | Path = os.environ.get("DATABASE_URL") or DB_PATH
+        _db = Database(conn)
     return _db

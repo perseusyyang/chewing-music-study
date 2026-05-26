@@ -9,7 +9,7 @@ The detection runs entirely in the browser via MediaPipe FaceMesh and a dual-sig
 - Python 3.11+ (the venv must use 3.11 or newer — `requires-python = ">=3.11"` in `backend/pyproject.toml`)
 - Node 18+ (for vitest)
 - `ffmpeg` for the placeholder music helper (`brew install ffmpeg` on macOS); optional, only needed if you don't have real AI music yet
-- For real music generation: a CUDA or MPS GPU and the `audiocraft` package
+- For regenerating music: a CUDA or MPS GPU plus `scripts/requirements.txt` (torch + transformers — runs MusicGen). The 20 generated MP3s are committed to the repo so you don't need this just to run the app.
 
 ## Quick start
 
@@ -61,21 +61,19 @@ These are the validated defaults; tweak per participant if needed. Active option
 
 ### Music
 
-The repo ships with empty `backend/music/{classical,hiphop}/manifest.json` placeholders. To get audio working you need MP3 files in those folders. Two options:
+The repo ships with 10 classical + 10 hip-hop MP3s already committed under `backend/music/`. They were produced by `scripts/generate_music.py` with the prompts checked into that file. To regenerate (e.g. after tweaking a prompt):
 
 ```bash
-# Real AI-generated music (requires GPU + audiocraft)
+# Real AI-generated music (requires GPU; MPS on Apple Silicon, CUDA on NVIDIA)
 pip install -r scripts/requirements.txt
-python scripts/generate_music.py --genre classical --count 10
-python scripts/generate_music.py --genre hiphop --count 10
+python scripts/generate_music.py --genre classical --count 10 --duration 30
+python scripts/generate_music.py --genre hiphop --count 10 --duration 30
 
-# Placeholder sine tones for plumbing tests (requires ffmpeg)
-cd backend/music/classical
-ffmpeg -y -f lavfi -i "sine=frequency=440:duration=30" -ac 1 -b:a 64k cl_01.mp3
-# (update manifest.json accordingly)
+# Or, iterate on just a few tracks while keeping the rest:
+python scripts/generate_music.py --genre hiphop --count 5 --only 2,4 --duration 30
 ```
 
-MP3 files are gitignored; manifests are committed.
+`--only N1,N2,...` regenerates just those 1-based indices and leaves `manifest.json` untouched so existing approved tracks aren't lost during prompt iteration.
 
 ### Export results to CSV
 
@@ -88,20 +86,34 @@ python scripts/export_csv.py
 
 The DB lives at `backend/data/sessions.db`. The two CSVs cover both wide-format (one session per row) and long-format (one bite per row) for easy pandas/R loading.
 
+## Deploy (Render + Neon)
+
+Free-tier deploy: Render hosts the FastAPI app, Neon hosts a persistent Postgres for session uploads. The committed MP3s travel with the repo, so the deploy host doesn't need torch/transformers. Free Render web services sleep after 15 min of inactivity (~30s cold start) and the Neon free tier holds 0.5 GB of data with no time limit — enough for this study.
+
+1. **Create a Neon project** at https://neon.tech, then copy the connection string from the dashboard. It looks like `postgresql://USER:PASS@HOST/DBNAME?sslmode=require`.
+2. **Push this repo to GitHub.** No remote is configured yet; create an empty GitHub repo and `git remote add origin <url> && git push -u origin main`.
+3. **Create the Render service.** In the Render dashboard pick "New + → Blueprint" and point it at the GitHub repo. Render detects [`render.yaml`](render.yaml) and provisions a free web service named `chewing-music-study` with `pip install -e ./backend` as the build and `uvicorn app.main:app --host 0.0.0.0 --port $PORT` as the start command.
+4. **Set `DATABASE_URL`** in the Render service's Environment tab to the Neon string. The app reads it via [`backend/app/db_singleton.py`](backend/app/db_singleton.py) and falls back to local SQLite when the env var is absent, so dev/tests are unaffected.
+5. **Open the HTTPS URL** Render assigns (`<service>.onrender.com`). Camera works because the URL is HTTPS. Sessions are written to Neon and survive cold starts.
+
+To pull session data, point [`scripts/export_csv.py`](scripts/export_csv.py) at the Neon connection string (set the same `DATABASE_URL` env var locally and run the script — the SQLite vs Postgres dispatch in `db.py` handles it).
+
 ## Project layout
 
 ```
-backend/         FastAPI app + SQLite + tests
-  app/           main.py, routes.py, schemas.py, db.py, playlist.py, db_singleton.py
+backend/         FastAPI app + DB layer + tests
+  app/           main.py, routes.py, schemas.py, db.py (SQLite + Postgres),
+                 playlist.py, db_singleton.py
   tests/         pytest suites
-  music/         pre-generated mp3s + manifest.json (mp3 gitignored)
-  data/          sessions.db (runtime, gitignored)
+  music/         20 generated mp3s + manifest.json (mp3s committed)
+  data/          sessions.db (local-only, gitignored)
 frontend/        Static HTML/CSS/JS — no bundler
   index.html     SPA entry (consent → setup → recording → results)
   debug.html     Standalone detector tuning view
   js/            detector.js, face_source.js, audio_player.js, api.js, router.js, views/
   tests/         vitest suites
 scripts/         Offline tools (music generation, CSV export)
+render.yaml      Render free-tier deploy blueprint
 docs/superpowers/specs/  Design spec
 docs/superpowers/plans/  Implementation plan (historical)
 ```
