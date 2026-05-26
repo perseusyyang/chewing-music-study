@@ -42,7 +42,7 @@ GENRE_CONFIG = {
     "hiphop": {
         "prefix": "hh",
         "prompts": [
-            "Upbeat instrumental hip-hop with crisp drums, deep bass groove, head-nodding beat. 90 BPM, no vocals, energetic.",
+            "Energetic instrumental hip-hop beat at 105 BPM, no vocals. Head-nodding boom-bap groove. Drums (kick, snare, closed hi-hats) and a deep walking bass enter from the first second. Mellow Rhodes electric piano plays warm jazzy chord stabs. A clean electric guitar plays a melodic riff on top — funky melodic licks audible throughout. Multiple instruments active at once. No singing, no rapping, no vocal samples, no synth pads, no static, no tape hiss, no background noise, no hum. Clean mix.",
             "Boom-bap hip-hop instrumental with vinyl crackle, jazzy sample, tight snare, rhythmic bass.",
             "Modern trap beat with rolling hi-hats, 808 bass, punchy kick. Mid-tempo, rhythmic, no vocals.",
             "Funky hip-hop groove with electric piano stabs, syncopated drums, walking bass.",
