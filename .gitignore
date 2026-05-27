@@ -20,6 +20,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Secrets
+.env
+
 # CSV exports (research artifacts; commit explicitly if needed)
 /sessions_summary.csv
 /bites_long.csv
