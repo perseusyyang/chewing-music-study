@@ -50,6 +50,7 @@ export class FaceMeshSource {
       },
       width: 640,
       height: 480,
+      facingMode: 'user',
     });
     await this._camera.start();
   }
