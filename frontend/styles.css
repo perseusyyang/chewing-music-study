@@ -61,3 +61,5 @@ button.stop { background: var(--red); }
 .card .l { font-size: 0.8rem; color: #555; }
 canvas { background: white; border-radius: 0.5rem; padding: 0.5rem; margin-top: 0.5rem; }
 .actions { display: flex; gap: 1rem; }
+.nav-alt { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e5e5e5; font-size: 0.9rem; color: #666; }
+.nav-alt a { color: var(--accent); }
