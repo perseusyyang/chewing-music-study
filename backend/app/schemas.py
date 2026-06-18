@@ -4,8 +4,8 @@ from typing import Literal
 from pydantic import BaseModel, Field, NonNegativeInt
 
 
-FoodType = Literal["chinese", "steak", "salad", "sushi", "western"]
-MusicGenre = Literal["classical", "hiphop"]
+FoodType = Literal["chinese", "steak", "salad", "sushi", "western", "baozi", "bread"]
+MusicGenre = Literal["classical", "hiphop", "tempo_slow", "tempo_fast"]
 
 
 class Bite(BaseModel):

@@ -7,10 +7,14 @@ const FOOD_LABELS = {
   salad: 'Salad / light',
   sushi: 'Sushi',
   western: 'Western',
+  baozi: 'Chinese bun (包子)',
+  bread: 'Western bread (面包)',
 };
 const MUSIC_LABELS = {
   classical: 'Classical',
   hiphop: 'Hip-hop',
+  tempo_slow: 'Slow (85 BPM)',
+  tempo_fast: 'Fast (145 BPM)',
 };
 
 export function mountResults(router) {

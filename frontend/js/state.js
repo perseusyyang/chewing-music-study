@@ -26,6 +26,9 @@ export const session = {
   // Pre-fetched on setup page so recording.js doesn't need to await the network
   // (which would break iOS Safari's user-gesture window before audio.play()).
   playlist: null,
+  url_prefix: null,
+  // Tempo study: randomly-assigned group ("tempo_slow" or "tempo_fast")
+  tempo_group: null,
   // Audio element pre-unlocked synchronously inside the Start-button click, so
   // subsequent .play() calls work on iOS Safari without re-entering a gesture.
   audioEl: null,
@@ -45,5 +48,7 @@ export function resetSession() {
   session.chew_events_ms = [];
   session.bite_events_ms = [];
   session.playlist = null;
+  session.url_prefix = null;
+  session.tempo_group = null;
   session.audioEl = null;
 }

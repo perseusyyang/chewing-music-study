@@ -28,7 +28,7 @@ export function mountSetup(router) {
       checkReady();
       // Pre-fetch playlist so recording.js doesn't need to await it.
       fetchPlaylist(session.music_genre)
-        .then((data) => { session.playlist = data.tracks; })
+        .then((data) => { session.playlist = data.tracks; session.url_prefix = data.url_prefix; })
         .catch(() => { /* recording.js will retry */ });
     }
   });

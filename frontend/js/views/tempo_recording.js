@@ -4,6 +4,11 @@ import { FaceMeshSource } from '../face_source.js';
 import { PlaylistPlayer } from '../audio_player.js';
 import { fetchPlaylist } from '../api.js';
 
+const TEMPO_LABELS = {
+  tempo_slow: 'Slow (85 BPM)',
+  tempo_fast: 'Fast (145 BPM)',
+};
+
 let timerInterval = null;
 let startMs = null;
 let detector = null;
@@ -12,7 +17,7 @@ let player = null;
 let noFaceTimer = null;
 
 export async function mountRecording(router) {
-  if (!session.food_type || !session.music_genre) {
+  if (!session.food_type || !session.tempo_group) {
     router.navigate('/setup');
     return;
   }
@@ -23,22 +28,28 @@ export async function mountRecording(router) {
   const statusDot = document.getElementById('status-dot');
   const statusText = document.getElementById('status-text');
   const trackTitleEl = document.getElementById('track-title');
+  const tempoLabelEl = document.getElementById('tempo-label');
 
-  // Prefer the playlist pre-fetched on the setup page; fall back to fetching now
-  // (e.g. if the user changed genre AFTER the setup-page prefetch fired).
-  let playlist = session.playlist;
-  if (!playlist) {
-    try {
-      const data = await fetchPlaylist(session.music_genre);
-      playlist = data.tracks;
-    } catch (e) {
-      statusText.textContent = 'Failed to load music: ' + e.message;
-      statusDot.classList.add('red');
-      return;
-    }
+  // Show tempo group
+  tempoLabelEl.textContent = TEMPO_LABELS[session.tempo_group] || session.tempo_group;
+
+  // Fetch playlist for the randomly-assigned tempo group
+  let playlist;
+  let urlPrefix;
+  try {
+    const data = await fetchPlaylist(session.tempo_group);
+    playlist = data.tracks;
+    urlPrefix = data.url_prefix;
+    session.playlist = playlist;
+    session.url_prefix = urlPrefix;
+  } catch (e) {
+    statusText.textContent = 'Failed to load music: ' + e.message;
+    statusDot.classList.add('red');
+    return;
   }
+
   if (!playlist.length) {
-    statusText.textContent = 'No music available for this genre.';
+    statusText.textContent = 'No music available.';
     statusDot.classList.add('red');
     return;
   }
@@ -52,10 +63,8 @@ export async function mountRecording(router) {
   statusDot.classList.add('green');
   statusText.textContent = 'Detecting…';
 
-  // Reuse the audio element unlocked on the setup page (iOS Safari user-gesture
-  // requirement). Fall back to a fresh one for browsers that don't need this.
+  // Reuse the audio element unlocked on the setup page (iOS Safari requirement).
   const audio = session.audioEl || new Audio();
-  const urlPrefix = session.url_prefix || `/music/${session.music_genre}/`;
   player = new PlaylistPlayer(audio, playlist, urlPrefix, {
     onTrack: (track) => { trackTitleEl.textContent = track.title; },
   });

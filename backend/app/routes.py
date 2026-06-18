@@ -6,6 +6,13 @@ from app.schemas import SessionUpload
 
 router = APIRouter()
 
+GENRE_URL_PREFIX = {
+    "classical": "/music/classical/",
+    "hiphop": "/music/hiphop/",
+    "tempo_slow": "/music/tempo_study/slow/",
+    "tempo_fast": "/music/tempo_study/fast/",
+}
+
 
 @router.get("/health")
 def health():
@@ -18,7 +25,11 @@ def get_playlist(genre: str):
         tracks = playlist.load_playlist(genre)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    return {"genre": genre, "tracks": tracks}
+    return {
+        "genre": genre,
+        "url_prefix": GENRE_URL_PREFIX.get(genre, f"/music/{genre}/"),
+        "tracks": tracks,
+    }
 
 
 @router.post("/sessions")

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "et_02_ethereal-vistas",
+    "filename": "et_01.mp3",
+    "title": "Ethereal Vistas",
+    "duration_sec": 119.38
+  },
+  {
+    "id": "et_03_save-as",
+    "filename": "et_02.mp3",
+    "title": "Save As",
+    "duration_sec": 128.85
+  },
+  {
+    "id": "et_04_lazy-day",
+    "filename": "et_03.mp3",
+    "title": "Lazy Day",
+    "duration_sec": 95.65
+  },
+  {
+    "id": "et_05_downtempo-chill-electronic",
+    "filename": "et_04.mp3",
+    "title": "Downtempo Chill Electronic",
+    "duration_sec": 90.45
+  }
+]

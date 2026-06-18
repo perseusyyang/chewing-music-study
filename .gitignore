@@ -26,3 +26,4 @@ Thumbs.db
 # CSV exports (research artifacts; commit explicitly if needed)
 /sessions_summary.csv
 /bites_long.csv
+scripts/tempo_study/
