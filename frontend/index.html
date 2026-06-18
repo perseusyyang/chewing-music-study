@@ -5,84 +5,63 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Chewing &amp; Music Study</title>
   <link rel="stylesheet" href="/styles.css">
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4" crossorigin="anonymous"></script>
+  <style>
+    .landing { text-align: center; padding-top: 3rem; }
+    .landing h1 { font-size: 2rem; margin-bottom: 0.5rem; }
+    .landing .subtitle { color: #666; margin-bottom: 3rem; font-size: 1.05rem; }
+    .studies { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; max-width: 640px; margin: 0 auto; }
+    .study-card {
+      background: white;
+      border-radius: 1rem;
+      padding: 2rem 1.5rem;
+      text-decoration: none;
+      color: var(--fg);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      transition: box-shadow 0.2s, transform 0.2s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .study-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.12); transform: translateY(-2px); }
+    .study-card .icon { font-size: 2.5rem; margin-bottom: 1rem; }
+    .study-card h2 { font-size: 1.2rem; margin: 0 0 0.5rem 0; }
+    .study-card p { color: #666; font-size: 0.9rem; margin: 0; line-height: 1.5; }
+    .study-card .tag {
+      display: inline-block;
+      background: #eef2ff;
+      color: var(--accent);
+      padding: 0.2rem 0.6rem;
+      border-radius: 0.25rem;
+      font-size: 0.75rem;
+      margin-top: 0.75rem;
+    }
+    @media (max-width: 500px) {
+      .studies { grid-template-columns: 1fr; }
+    }
+  </style>
 </head>
 <body>
-  <main id="app"></main>
-
-  <template id="view-consent">
-    <section class="view">
+  <main>
+    <section class="landing">
       <h1>Chewing &amp; Music Study</h1>
-      <h2>Purpose</h2>
-      <p>We are studying how different background music affects chewing speed during eating. Your participation will help us understand the relationship between auditory rhythm and eating behavior.</p>
-      <h2>Privacy</h2>
-      <ul>
-        <li>Your camera will be turned on, but <strong>video frames stay in your browser and are never uploaded</strong>.</li>
-        <li>If you choose to upload at the end, we only collect: food type, music type, chew counts and timestamps, per-bite data, and device info (browser, screen size).</li>
-        <li>We do <strong>not</strong> collect: your face, name, email, IP address, or location.</li>
-        <li>Uploading is voluntary — you only send data if you tap "Upload" on the results page.</li>
-        <li>You can quit any time by closing this page.</li>
-      </ul>
-      <label class="consent-row">
-        <input type="checkbox" id="consent-check">
-        I have read and agree to participate.
-      </label>
-      <button id="consent-continue" disabled>Continue</button>
-      <p class="nav-alt">Also available: <a href="/tempo.html">Tempo Study</a> — how does music speed affect chewing?</p>
-    </section>
-  </template>
+      <p class="subtitle">How does music affect the way we chew? Choose a study to participate.</p>
 
-  <template id="view-setup">
-    <section class="view">
-      <h1>Before you start</h1>
-      <h2>What are you eating?</h2>
-      <div class="choices" id="food-choices">
-        <label><input type="radio" name="food" value="chinese"> Chinese (rice/dishes)</label>
-        <label><input type="radio" name="food" value="steak"> Steak</label>
-        <label><input type="radio" name="food" value="salad"> Salad / light meal</label>
-        <label><input type="radio" name="food" value="sushi"> Sushi</label>
-        <label><input type="radio" name="food" value="western"> Western (pizza/burger/pasta/bread)</label>
-      </div>
-      <h2>Music type</h2>
-      <div class="choices" id="music-choices">
-        <label><input type="radio" name="music" value="classical"> Classical (calm)</label>
-        <label><input type="radio" name="music" value="hiphop"> Hip-hop (rhythmic)</label>
-      </div>
-      <button id="setup-start" disabled>Start recording</button>
-    </section>
-  </template>
+      <div class="studies">
+        <a class="study-card" href="/genre.html">
+          <span class="icon">🎵</span>
+          <h2>Genre Study</h2>
+          <p>Compare chewing speed between Classical and Hip-hop music while eating a meal.</p>
+          <span class="tag">Classical vs Hip-hop</span>
+        </a>
 
-  <template id="view-recording">
-    <section class="view recording">
-      <video id="cam" autoplay muted playsinline></video>
-      <div class="timer" id="timer">00:00</div>
-      <div class="now-playing"><span class="label">Now playing:</span> <span id="track-title">—</span></div>
-      <div class="status">
-        <span class="dot" id="status-dot"></span>
-        <span id="status-text">Detecting…</span>
+        <a class="study-card" href="/tempo.html">
+          <span class="icon">⏱️</span>
+          <h2>Tempo Study</h2>
+          <p>See how slow (85 BPM) vs fast (145 BPM) electronic music changes your chewing rhythm.</p>
+          <span class="tag">Slow vs Fast</span>
+        </a>
       </div>
-      <button id="recording-stop" class="stop">End recording</button>
     </section>
-  </template>
-
-  <template id="view-results">
-    <section class="view">
-      <h1>Your session</h1>
-      <div class="cards" id="result-cards"></div>
-      <h2>Chewing frequency over time</h2>
-      <canvas id="freq-chart"></canvas>
-      <h2>Chews per bite</h2>
-      <canvas id="bites-chart"></canvas>
-      <div class="actions">
-        <button id="upload-btn">Upload anonymous result</button>
-        <button id="again-btn">Start another session</button>
-      </div>
-      <p id="upload-status"></p>
-    </section>
-  </template>
-
-  <script type="module" src="/js/main.js"></script>
+  </main>
 </body>
 </html>

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tempo &amp; Chewing Study</title>
+  <title>Chewing &amp; Music Study</title>
   <link rel="stylesheet" href="/styles.css">
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
@@ -14,20 +14,13 @@
 
   <template id="view-consent">
     <section class="view">
-      <h1>Tempo &amp; Chewing Study</h1>
+      <h1>Chewing &amp; Music Study</h1>
       <h2>Purpose</h2>
-      <p>We are studying how music tempo (speed) affects chewing rate during eating. You will listen to electronic music while eating, and your phone's camera will track your chewing movements.</p>
-      <h2>What to expect</h2>
-      <ul>
-        <li>You will be asked to eat <strong>one fist-sized</strong> Chinese bun (包子) or Western bread (面包).</li>
-        <li>You <strong>may drink water</strong> during the session.</li>
-        <li>Please <strong>avoid distractions</strong> — no phone scrolling, chatting, or other activities while eating.</li>
-        <li>The music will play automatically. You do not need to choose the music type.</li>
-      </ul>
+      <p>We are studying how different background music affects chewing speed during eating. Your participation will help us understand the relationship between auditory rhythm and eating behavior.</p>
       <h2>Privacy</h2>
       <ul>
         <li>Your camera will be turned on, but <strong>video frames stay in your browser and are never uploaded</strong>.</li>
-        <li>If you choose to upload at the end, we only collect: food type, music tempo group, chew counts and timestamps, per-bite data, and device info (browser, screen size).</li>
+        <li>If you choose to upload at the end, we only collect: food type, music type, chew counts and timestamps, per-bite data, and device info (browser, screen size).</li>
         <li>We do <strong>not</strong> collect: your face, name, email, IP address, or location.</li>
         <li>Uploading is voluntary — you only send data if you tap "Upload" on the results page.</li>
         <li>You can quit any time by closing this page.</li>
@@ -45,11 +38,17 @@
       <h1>Before you start</h1>
       <h2>What are you eating?</h2>
       <div class="choices" id="food-choices">
-        <label><input type="radio" name="food" value="baozi"> 🥟 Chinese bun (包子) — fist-sized</label>
-        <label><input type="radio" name="food" value="bread"> 🍞 Western bread (面包) — fist-sized</label>
+        <label><input type="radio" name="food" value="chinese"> Chinese (rice/dishes)</label>
+        <label><input type="radio" name="food" value="steak"> Steak</label>
+        <label><input type="radio" name="food" value="salad"> Salad / light meal</label>
+        <label><input type="radio" name="food" value="sushi"> Sushi</label>
+        <label><input type="radio" name="food" value="western"> Western (pizza/burger/pasta/bread)</label>
       </div>
-      <p class="hint">Please prepare your food and water before starting.</p>
-      <p class="hint">The music tempo will be randomly assigned when you begin.</p>
+      <h2>Music type</h2>
+      <div class="choices" id="music-choices">
+        <label><input type="radio" name="music" value="classical"> Classical (calm)</label>
+        <label><input type="radio" name="music" value="hiphop"> Hip-hop (rhythmic)</label>
+      </div>
       <button id="setup-start" disabled>Start recording</button>
     </section>
   </template>
@@ -59,7 +58,6 @@
       <video id="cam" autoplay muted playsinline></video>
       <div class="timer" id="timer">00:00</div>
       <div class="now-playing"><span class="label">Now playing:</span> <span id="track-title">—</span></div>
-      <div class="now-playing"><span class="label">Tempo group:</span> <span id="tempo-label">—</span></div>
       <div class="status">
         <span class="dot" id="status-dot"></span>
         <span id="status-text">Detecting…</span>
@@ -85,6 +83,6 @@
     </section>
   </template>
 
-  <script type="module" src="/js/tempo_main.js"></script>
+  <script type="module" src="/js/main.js"></script>
 </body>
 </html>

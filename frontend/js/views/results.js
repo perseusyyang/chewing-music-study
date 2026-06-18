@@ -67,6 +67,14 @@ export function mountResults(router) {
     resetSession();
     router.navigate('/setup');
   });
+
+  const homeBtn = document.getElementById('home-btn');
+  if (homeBtn) {
+    homeBtn.addEventListener('click', () => {
+      resetSession();
+      window.location.href = '/';
+    });
+  }
 }
 
 function buildPayload() {
