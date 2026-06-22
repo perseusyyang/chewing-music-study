@@ -7,7 +7,9 @@
  *
  * Each sample is { t_ms, mouth_open, jaw_drop, no_face }:
  *   - mouth_open: normalized vertical lip distance (upper_lip ↔ lower_lip) / face_width
- *   - jaw_drop:   normalized nose-to-chin distance / face_width  (rises when jaw drops)
+ *   - jaw_drop:   normalized upper-lip-to-chin distance / face_width
+ *                 (chin relative to upper lip, NOT absolute screen position,
+ *                  so head/device movement does not affect the signal)
  *   - no_face:    true when MediaPipe lost the face this frame
  *
  * Loads FaceMesh from CDN; expects window.FaceMesh and window.Camera to be available.
@@ -73,12 +75,13 @@ export class FaceMeshSource {
     const l = landmarks[LM_LOWER_LIP_CENTER];
     const lc = landmarks[LM_LEFT_CHEEK];
     const rc = landmarks[LM_RIGHT_CHEEK];
-    const n = landmarks[LM_NOSE_TIP];
     const c = landmarks[LM_CHIN_TIP];
 
     const lipDist = Math.hypot(u.x - l.x, u.y - l.y);
     const faceWidth = Math.hypot(lc.x - rc.x, lc.y - rc.y);
-    const jawDist = Math.hypot(n.x - c.x, n.y - c.y);
+    // Jaw drop: chin-to-upper-lip distance (relative to upper lip, not absolute position).
+    // This isolates jaw movement from head/device movement.
+    const jawDist = Math.hypot(u.x - c.x, u.y - c.y);
 
     const mouth_open = faceWidth > 0 ? lipDist / faceWidth : 0;
     const jaw_drop = faceWidth > 0 ? jawDist / faceWidth : 0;
