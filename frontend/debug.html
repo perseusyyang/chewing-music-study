@@ -44,7 +44,7 @@
     }
     .chart-panel h3 { font-size: 0.85rem; margin: 0 0 0.25rem 0; display: flex; align-items: center; gap: 0.5rem; }
     .chart-panel h3 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
-    canvas { width: 100%; height: 220px; display: block; }
+    canvas { width: 100%; height: 400px; display: block; }
 
     .legend { display: flex; gap: 1rem; font-size: 0.7rem; color: #666; margin-bottom: 0.25rem; flex-wrap: wrap; }
     .legend span { display: inline-flex; align-items: center; gap: 0.25rem; }
@@ -52,6 +52,10 @@
     .legend .swatch.dash { border-top: 2px dashed; height: 0; }
 
     .bite-zone { background: rgba(22,163,74,0.08); border-left: 2px solid var(--green); }
+
+    .label-row { display: flex; gap: 0.5rem; margin-top: 0.25rem; font-size: 0.7rem; }
+    .label-row .chew-label { color: var(--red); }
+    .label-row .bite-label { color: var(--green); }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
@@ -73,11 +77,11 @@
 
       <div class="tuner">
         <h3>⚙️ Detector Parameters</h3>
-        <label>minChewProminence (jaw_drop amplitude, default 0.003)</label>
+        <label>minChewProminence (small wave → chew, default 0.003)</label>
         <input id="t-minChewProminence" type="number" step="0.0005" value="0.003">
 
-        <label>minBiteProminence (mouth_open amplitude, default 0.005)</label>
-        <input id="t-minBiteProminence" type="number" step="0.001" value="0.005">
+        <label>minBiteProminence (large wave → bite, default 0.008)</label>
+        <input id="t-minBiteProminence" type="number" step="0.001" value="0.008">
 
         <label>minChewIntervalMs (default 175)</label>
         <input id="t-minChewIntervalMs" type="number" step="25" value="175">
@@ -99,26 +103,22 @@
       <p class="note">💡 Peaks are detected by <strong>prominence</strong> (wave amplitude), not by crossing a fixed value threshold. This makes detection robust to head/device movement.</p>
     </div>
 
-    <!-- Charts -->
+    <!-- Chart -->
     <div class="charts">
       <div class="chart-panel">
-        <h3><span class="dot" style="background:var(--blue)"></span> Mouth Open — Bite Detection (by peak prominence ≥ minBiteProminence)</h3>
+        <h3><span class="dot" style="background:var(--blue)"></span> Mouth Open — Chew &amp; Bite Detection</h3>
         <div class="legend">
           <span><span class="swatch" style="background:var(--blue)"></span> mouth_open</span>
-          <span style="color:var(--green)">▲ bite event</span>
+          <span style="color:var(--red)">● chew (small wave)</span>
+          <span style="color:var(--green)">▲ bite (large wave)</span>
           <span style="background:rgba(22,163,74,0.15);padding:0 4px;border-radius:2px;">bite session</span>
         </div>
-        <canvas id="chart-bite" width="1000" height="220"></canvas>
-      </div>
-
-      <div class="chart-panel">
-        <h3><span class="dot" style="background:var(--orange)"></span> Jaw Drop — Chew Detection (by peak prominence ≥ minChewProminence)</h3>
-        <div class="legend">
-          <span><span class="swatch" style="background:var(--orange)"></span> jaw_drop (chin-to-upper-lip)</span>
-          <span style="color:var(--red)">● chew event</span>
-          <span style="background:rgba(22,163,74,0.15);padding:0 4px;border-radius:2px;">bite session</span>
+        <canvas id="chart-main" width="1000" height="400"></canvas>
+        <div class="label-row">
+          <span class="chew-label">chew prominence ≥ minChewProminence</span>
+          <span>·</span>
+          <span class="bite-label">bite prominence ≥ minBiteProminence</span>
         </div>
-        <canvas id="chart-chew" width="1000" height="220"></canvas>
       </div>
     </div>
   </div>

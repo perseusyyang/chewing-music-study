@@ -4,7 +4,7 @@ import { FaceMeshSource } from './face_source.js';
 // --- Parameter handling ---
 const defaults = {
   minChewProminence: 0.003,
-  minBiteProminence: 0.005,
+  minBiteProminence: 0.008,
   minChewIntervalMs: 175,
   minBiteEventIntervalMs: 1000,
   biteEndPauseMs: 3000,
@@ -28,7 +28,6 @@ function setParams(params) {
   }
 }
 
-// Read URL params on load
 (() => {
   const urlParams = new URLSearchParams(window.location.search);
   const fromUrl = {};
@@ -49,10 +48,8 @@ const sessionsEl = document.getElementById('sessions');
 const nfEl = document.getElementById('nf');
 const applyBtn = document.getElementById('apply-btn');
 
-const chartBite = document.getElementById('chart-bite');
-const chartChew = document.getElementById('chart-chew');
-const ctxBite = chartBite.getContext('2d');
-const ctxChew = chartChew.getContext('2d');
+const chartEl = document.getElementById('chart-main');
+const ctx = chartEl.getContext('2d');
 
 // --- State ---
 const t0 = performance.now();
@@ -61,15 +58,19 @@ const history = [];
 const HISTORY_MS = 30000;
 
 // --- Rendering ---
-function drawChart(ctx, w, h, tMin, tMax, visible,
-  signalField, signalColor,
-  events, eventColor, eventShape,
-  eventLabelField, // 'prominence' — show prominence next to event
-  bites) {
+function draw() {
+  const tNow = performance.now() - t0;
+  const tMin = Math.max(0, tNow - HISTORY_MS);
+  const tMax = tNow + 1000;
+  const visible = history.filter((s) => s.t_ms >= tMin);
+  if (visible.length < 2) return;
+
+  const w = chartEl.width;
+  const h = chartEl.height;
 
   ctx.clearRect(0, 0, w, h);
 
-  const pad = { top: 25, right: 20, bottom: 30, left: 50 };
+  const pad = { top: 25, right: 20, bottom: 30, left: 55 };
   const pw = w - pad.left - pad.right;
   const ph = h - pad.top - pad.bottom;
 
@@ -77,12 +78,10 @@ function drawChart(ctx, w, h, tMin, tMax, visible,
 
   let mn = Infinity, mx = -Infinity;
   for (const s of visible) {
-    const v = s[signalField];
-    if (v < mn) mn = v;
-    if (v > mx) mx = v;
+    if (s.mouth_open < mn) mn = s.mouth_open;
+    if (s.mouth_open > mx) mx = s.mouth_open;
   }
   if (mx === mn) { mn -= 0.001; mx += 0.001; }
-  // Add a little padding
   const range = mx - mn;
   mn -= range * 0.1;
   mx += range * 0.1;
@@ -90,7 +89,7 @@ function drawChart(ctx, w, h, tMin, tMax, visible,
   function toY(v) { return pad.top + ph - ((v - mn) / (mx - mn)) * ph; }
 
   // Bite session shading
-  for (const b of bites) {
+  for (const b of detector.bites) {
     if (b.end_ms < tMin || b.start_ms > tMax) continue;
     const x1 = Math.max(pad.left, toX(Math.max(b.start_ms, tMin)));
     const x2 = Math.min(w - pad.right, toX(Math.min(b.end_ms, tMax)));
@@ -118,7 +117,7 @@ function drawChart(ctx, w, h, tMin, tMax, visible,
   }
   ctx.textAlign = 'start';
 
-  // Time axis labels
+  // Time axis
   ctx.fillStyle = '#999';
   ctx.font = '9px monospace';
   for (let s = Math.ceil(tMin / 5000) * 5; s <= tMax; s += 5) {
@@ -127,67 +126,50 @@ function drawChart(ctx, w, h, tMin, tMax, visible,
   }
 
   // Signal line
-  ctx.strokeStyle = signalColor;
+  ctx.strokeStyle = '#3b82f6';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   let started = false;
   for (const s of visible) {
     const x = toX(s.t_ms);
-    const y = toY(s[signalField]);
+    const y = toY(s.mouth_open);
     if (!started) { ctx.moveTo(x, y); started = true; }
     else ctx.lineTo(x, y);
   }
   ctx.stroke();
 
-  // Event markers with prominence labels
-  for (const ev of events) {
+  // Chew events (red dots) — small waves
+  for (const ev of detector.chews) {
     if (ev.t_ms < tMin || ev.t_ms > tMax) continue;
     const x = toX(ev.t_ms);
-    if (eventShape === 'dot') {
-      ctx.fillStyle = eventColor;
-      ctx.beginPath();
-      ctx.arc(x, pad.top + ph - 8, 5, 0, Math.PI * 2);
-      ctx.fill();
-      // Prominence label
-      if (ev[eventLabelField] !== undefined) {
-        ctx.fillStyle = eventColor;
-        ctx.font = '8px monospace';
-        ctx.fillText(ev[eventLabelField].toFixed(4), x + 6, pad.top + ph - 4);
-      }
-    } else {
-      ctx.fillStyle = eventColor;
-      ctx.beginPath();
-      ctx.moveTo(x, pad.top + 6);
-      ctx.lineTo(x - 7, pad.top + ph - 6);
-      ctx.lineTo(x + 7, pad.top + ph - 6);
-      ctx.closePath();
-      ctx.fill();
-      if (ev[eventLabelField] !== undefined) {
-        ctx.fillStyle = eventColor;
-        ctx.font = '8px monospace';
-        ctx.fillText(ev[eventLabelField].toFixed(4), x + 6, pad.top + ph - 10);
-      }
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(x, pad.top + ph - 8, 4, 0, Math.PI * 2);
+    ctx.fill();
+    if (ev.prominence !== undefined) {
+      ctx.fillStyle = '#ef4444';
+      ctx.font = '8px monospace';
+      ctx.fillText(ev.prominence.toFixed(4), x + 6, pad.top + ph - 4);
     }
   }
-}
 
-function draw() {
-  const tNow = performance.now() - t0;
-  const tMin = Math.max(0, tNow - HISTORY_MS);
-  const tMax = tNow + 1000;
-  const visible = history.filter((s) => s.t_ms >= tMin);
-
-  if (visible.length < 2) return;
-
-  drawChart(ctxBite, chartBite.width, chartBite.height, tMin, tMax, visible,
-    'mouth_open', '#3b82f6',
-    detector.biteEvents, '#16a34a', 'tri', 'prominence',
-    detector.bites);
-
-  drawChart(ctxChew, chartChew.width, chartChew.height, tMin, tMax, visible,
-    'jaw_drop', '#f97316',
-    detector.chews, '#ef4444', 'dot', 'prominence',
-    detector.bites);
+  // Bite events (green triangles) — large waves
+  for (const ev of detector.biteEvents) {
+    if (ev.t_ms < tMin || ev.t_ms > tMax) continue;
+    const x = toX(ev.t_ms);
+    ctx.fillStyle = '#16a34a';
+    ctx.beginPath();
+    ctx.moveTo(x, pad.top + 6);
+    ctx.lineTo(x - 8, pad.top + 18);
+    ctx.lineTo(x + 8, pad.top + 18);
+    ctx.closePath();
+    ctx.fill();
+    if (ev.prominence !== undefined) {
+      ctx.fillStyle = '#16a34a';
+      ctx.font = '9px monospace';
+      ctx.fillText(ev.prominence.toFixed(4), x + 8, pad.top + 16);
+    }
+  }
 }
 
 function loop() {

@@ -1,18 +1,17 @@
 /**
- * Detects chewing and bite events from face-tracking signals using
+ * Detects chewing and bite events from the mouth_open signal using
  * peak prominence (wave amplitude) rather than fixed value thresholds.
  *
  * Inputs (via addSample({t_ms, mouth_open, jaw_drop, no_face})):
- *   - mouth_open: normalized vertical lip distance — large spikes signal a bite event
- *   - jaw_drop:   normalized upper-lip-to-chin distance — oscillates with chewing
+ *   - mouth_open: normalized vertical lip distance (upper_lip ↔ lower_lip) / face_width
  *
- * Two independent prominence-based peak detectors run on these signals:
- *   - this.chews:      [{t_ms, prominence}] — chew events from jaw_drop peaks
- *   - this.biteEvents: [{t_ms, prominence}] — bite events from mouth_open peaks
+ * A single prominence-based peak detector runs on mouth_open:
+ *   - this.chews:      [{t_ms, prominence}] — chew events (small amplitude)
+ *   - this.biteEvents: [{t_ms, prominence}] — bite events (large amplitude)
  *
  * Prominence = how much a peak stands out from its surrounding troughs.
- * Small-amplitude waves → low prominence → chews (jaw_drop).
- * Large-amplitude waves → high prominence → bites (mouth_open).
+ * Small-amplitude waves → low prominence → chews.
+ * Large-amplitude waves → high prominence → bites.
  *
  * Bite session lifecycle:
  *   - A bite is the chew run between consecutive bite events (or session boundaries).
@@ -29,12 +28,12 @@ export class ChewDetector {
     this.warmupMs = options.warmupMs ?? 0;
     this.minValidForThreshold = options.minValidForThreshold ?? 10;
 
-    // Chew detection (on jaw_drop via prominence)
+    // Chew detection (small-amplitude peaks on mouth_open)
     this.minChewProminence = options.minChewProminence ?? 0.003;
     this.minChewIntervalMs = options.minChewIntervalMs ?? 175;
 
-    // Bite-event detection (on mouth_open via prominence)
-    this.minBiteProminence = options.minBiteProminence ?? 0.005;
+    // Bite-event detection (large-amplitude peaks on mouth_open)
+    this.minBiteProminence = options.minBiteProminence ?? 0.008;
     this.minBiteEventIntervalMs = options.minBiteEventIntervalMs ?? 1000;
 
     // Bite session lifecycle
@@ -55,8 +54,7 @@ export class ChewDetector {
     this._lastSampleT = sample.t_ms;
     this._pruneOld(sample.t_ms);
     if (sample.t_ms < this.warmupMs) return;
-    this._tryDetectChew();
-    this._tryDetectBiteEvent();
+    this._tryDetectPeak();
     this._checkBiteEnd(sample.t_ms);
   }
 
@@ -67,30 +65,32 @@ export class ChewDetector {
     }
   }
 
-  // ---- Prominence-based peak detection ----
+  // ---- Prominence-based peak detection (single signal) ----
 
   /**
-   * Scans the sample buffer for a confirmed peak on `field`.
+   * Scans the mouth_open sample buffer for a confirmed peak.
    * A peak is "confirmed" when confirmFrames samples have passed since
    * the candidate, with value strictly lower than the candidate.
    *
    * Prominence = candidate.value - max(left_trough.value, right_trough.value)
    * where troughs are the lowest points between consecutive peaks.
    *
-   * Returns {t_ms, prominence} or null.
+   * Classification:
+   *   prominence >= minBiteProminence  → bite event
+   *   prominence >= minChewProminence  → chew event
    */
-  _detectPeak(field, minProminence, minIntervalMs, existingEvents) {
+  _detectPeak(minProminence, minIntervalMs, existingEvents) {
     if (this._samples.length < this.confirmFrames * 2 + 1) return null;
 
     const centerIdx = this._samples.length - this.confirmFrames - 1;
     const candidate = this._samples[centerIdx];
     if (candidate.no_face) return null;
-    const cVal = candidate[field];
+    const cVal = candidate.mouth_open;
 
     // Must be a strict local maximum over ±confirmFrames
     for (let i = centerIdx - this.confirmFrames; i <= centerIdx + this.confirmFrames; i++) {
       if (i === centerIdx) continue;
-      if (this._samples[i][field] >= cVal) return null;
+      if (this._samples[i].mouth_open >= cVal) return null;
     }
 
     // Minimum interval since last same-type event
@@ -99,11 +99,9 @@ export class ChewDetector {
       if (candidate.t_ms - last.t_ms < minIntervalMs) return null;
     }
 
-    // Calculate prominence: find the higher of the two enclosing troughs.
-    // Left trough: lowest value between the previous peak (or buffer start) and this peak.
-    // Right trough: lowest value between this peak and the buffer end (so far).
-    const leftTrough = this._findTrough(field, 0, centerIdx);
-    const rightTrough = this._findTrough(field, centerIdx, this._samples.length - 1);
+    // Calculate prominence
+    const leftTrough = this._findTrough(0, centerIdx);
+    const rightTrough = this._findTrough(centerIdx, this._samples.length - 1);
     const prominence = cVal - Math.max(leftTrough, rightTrough);
 
     if (prominence < minProminence) return null;
@@ -111,38 +109,36 @@ export class ChewDetector {
     return { t_ms: candidate.t_ms, prominence };
   }
 
-  /**
-   * Finds the minimum value of `field` in samples[from..to] (inclusive).
-   */
-  _findTrough(field, fromIdx, toIdx) {
+  _findTrough(fromIdx, toIdx) {
     let minVal = Infinity;
     for (let i = fromIdx; i <= toIdx; i++) {
       const s = this._samples[i];
-      if (!s.no_face && s[field] < minVal) {
-        minVal = s[field];
+      if (!s.no_face && s.mouth_open < minVal) {
+        minVal = s.mouth_open;
       }
     }
     return minVal === Infinity ? 0 : minVal;
   }
 
-  // ---- Event detection ----
+  // ---- Event detection (single signal, dual threshold) ----
 
-  _tryDetectChew() {
-    const event = this._detectPeak('jaw_drop', this.minChewProminence,
-      this.minChewIntervalMs, this.chews);
-    if (event) {
-      this.chews.push({ t_ms: event.t_ms, prominence: event.prominence });
-      this._registerChew(event.t_ms);
-    }
-  }
-
-  _tryDetectBiteEvent() {
-    const event = this._detectPeak('mouth_open', this.minBiteProminence,
+  _tryDetectPeak() {
+    // Check for bite first (higher prominence threshold), then chew.
+    // If it qualifies as a bite, it should NOT also be counted as a chew.
+    const biteEvent = this._detectPeak(this.minBiteProminence,
       this.minBiteEventIntervalMs, this.biteEvents);
-    if (event) {
-      this.biteEvents.push({ t_ms: event.t_ms, prominence: event.prominence });
-      this._closeCurrentBite(event.t_ms);
-      this._currentBite = { start_ms: event.t_ms, chew_count: 0, last_chew_t: event.t_ms };
+    if (biteEvent) {
+      this.biteEvents.push({ t_ms: biteEvent.t_ms, prominence: biteEvent.prominence });
+      this._closeCurrentBite(biteEvent.t_ms);
+      this._currentBite = { start_ms: biteEvent.t_ms, chew_count: 0, last_chew_t: biteEvent.t_ms };
+      return; // don't double-count as chew
+    }
+
+    const chewEvent = this._detectPeak(this.minChewProminence,
+      this.minChewIntervalMs, this.chews);
+    if (chewEvent) {
+      this.chews.push({ t_ms: chewEvent.t_ms, prominence: chewEvent.prominence });
+      this._registerChew(chewEvent.t_ms);
     }
   }
 
