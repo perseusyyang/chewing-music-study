@@ -92,39 +92,91 @@ def make_training_data(labeled_sessions):
 # Model training
 # ---------------------------------------------------------------------------
 
-def train_model(X, y, label_names):
-    """Train an MLP classifier and return model weights."""
+def split_by_session(sessions, train_ratio=0.6, val_ratio=0.2, test_ratio=0.2, seed=42):
+    """
+    Split SESSIONS (not frames) into train/val/test.
+    Sessions from the same person/recording stay together to avoid data leakage.
+    """
+    rng = np.random.RandomState(seed)
+    idx = rng.permutation(len(sessions))
+    n = len(sessions)
+    n_train = max(1, int(n * train_ratio))
+    n_val = max(1, int(n * val_ratio))
+    n_test = n - n_train - n_val
+
+    train_idx = idx[:n_train]
+    val_idx = idx[n_train:n_train + n_val]
+    test_idx = idx[n_train + n_val:]
+
+    print(f"Split: {len(train_idx)} train / {len(val_idx)} val / {len(test_idx)} test sessions")
+    return train_idx, val_idx, test_idx
+
+
+def sessions_to_xy(session_indices, sessions):
+    """Convert a subset of sessions to (X, y)."""
+    return make_training_data([sessions[i] for i in session_indices])
+
+
+def train_model(sessions, label_names):
+    """Train with proper session-level train/val/test split."""
     from sklearn.preprocessing import StandardScaler
     from sklearn.neural_network import MLPClassifier
-    from sklearn.model_selection import cross_val_score
+    from sklearn.metrics import classification_report, confusion_matrix
 
-    # Normalize
+    # Split at session level
+    train_idx, val_idx, test_idx = split_by_session(sessions)
+
+    # Build feature matrices
+    X_train, y_train, _ = sessions_to_xy(train_idx, sessions)
+    X_val, y_val, _ = sessions_to_xy(val_idx, sessions)
+    X_test, y_test, _ = sessions_to_xy(test_idx, sessions)
+
+    if len(X_train) == 0:
+        print("ERROR: Not enough training data. Record more sessions.")
+        return None, None
+
+    # Normalize (fit on TRAIN only, apply to all)
     scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
+    X_train_s = scaler.fit_transform(X_train)
+    X_val_s = scaler.transform(X_val) if len(X_val) else None
+    X_test_s = scaler.transform(X_test) if len(X_test) else None
 
-    # Handle class imbalance
-    counts = Counter(y)
-    print(f"Class distribution: { {label_names[i]: counts.get(i, 0) for i in range(3)} }")
+    # Class distribution
+    counts = Counter(y_train)
+    print(f"Class distribution (train): { {label_names[i]: counts.get(i, 0) for i in range(3)} }")
 
-    # MLP: small architecture for browser inference
+    # MLP with validation-based early stopping
     model = MLPClassifier(
         hidden_layer_sizes=(16, 8),
         activation='relu',
         max_iter=500,
         early_stopping=True,
+        validation_fraction=0,  # we do manual validation
         random_state=42,
     )
+    model.fit(X_train_s, y_train)
 
-    # Cross-validation
-    try:
-        scores = cross_val_score(model, X_scaled, y, cv=3, scoring='accuracy')
-        print(f"Cross-val accuracy: {scores.mean():.3f} ± {scores.std():.3f}")
-    except Exception:
-        print("(skipping cross-val — not enough samples per class)")
+    # --- Evaluation ---
+    print(f"\n{'='*60}")
+    print(f"Train accuracy: {model.score(X_train_s, y_train):.3f}")
 
-    # Final fit
-    model.fit(X_scaled, y)
-    print(f"Final training accuracy: {model.score(X_scaled, y):.3f}")
+    if X_val_s is not None and len(X_val_s):
+        val_acc = model.score(X_val_s, y_val)
+        y_val_pred = model.predict(X_val_s)
+        print(f"\n--- Validation Set ({len(y_val)} samples) ---")
+        print(f"Accuracy: {val_acc:.3f}")
+        print(classification_report(y_val, y_val_pred, target_names=label_names, zero_division=0))
+
+    if X_test_s is not None and len(X_test_s):
+        test_acc = model.score(X_test_s, y_test)
+        y_test_pred = model.predict(X_test_s)
+        print(f"\n--- Test Set ({len(y_test)} samples) ---")
+        print(f"Accuracy: {test_acc:.3f}")
+        print(classification_report(y_test, y_test_pred, target_names=label_names, zero_division=0))
+        print("Confusion matrix:")
+        print(confusion_matrix(y_test, y_test_pred))
+
+    print(f"{'='*60}\n")
 
     return model, scaler
 
@@ -274,12 +326,13 @@ def main():
         print("ERROR: No labeled sessions found. Record & label some data first.")
         sys.exit(1)
 
-    print(f"\nTotal: {len(sessions)} sessions")
+    print(f"\nTotal: {len(sessions)} labeled sessions")
 
-    X, y, label_names = make_training_data(sessions)
-    print(f"Training samples: {X.shape[0]}, features: {X.shape[1]}")
+    label_names = ['none', 'chew', 'bite']
+    model, scaler = train_model(sessions, label_names)
 
-    model, scaler = train_model(X, y, label_names)
+    if model is None:
+        sys.exit(1)
 
     output = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'js', 'detector_model.js')
     export_js(model, scaler, label_names, os.path.abspath(output))
