@@ -5,124 +5,33 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Chewing Detector — Debug</title>
   <style>
-    :root {
-      --blue: #3b82f6;
-      --orange: #f97316;
-      --green: #16a34a;
-      --red: #ef4444;
-      --purple: #8b5cf6;
-      --bg: #fafafa;
-    }
-    body { font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 1rem; background: var(--bg); }
-    .layout { display: grid; grid-template-columns: 320px 1fr; gap: 1rem; max-width: 1400px; margin: 0 auto; }
-    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
-
-    /* Sidebar */
-    .sidebar {
-      background: white; border-radius: 0.75rem; padding: 1rem;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    }
-    .sidebar h2 { font-size: 1rem; margin: 0 0 0.75rem 0; }
-    .sidebar video { width: 100%; border-radius: 0.5rem; border: 1px solid #e5e5e5; margin-bottom: 1rem; }
-    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
-    .stat-item { background: #f9fafb; padding: 0.5rem; border-radius: 0.35rem; }
-    .stat-item .val { font-size: 1.1rem; font-weight: 700; font-family: monospace; }
-    .stat-item .lbl { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
-
-    .tuner { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #e5e5e5; }
-    .tuner h3 { font-size: 0.8rem; margin: 0 0 0.5rem 0; color: #666; }
-    .tuner label { display: block; font-size: 0.75rem; margin-bottom: 0.25rem; }
-    .tuner input { width: 100%; padding: 0.25rem; font-size: 0.8rem; border: 1px solid #ddd; border-radius: 0.25rem; margin-bottom: 0.4rem; }
-    .tuner .btn { display: inline-block; font-size: 0.75rem; padding: 0.3rem 0.6rem; background: var(--blue); color: white; border: none; border-radius: 0.25rem; cursor: pointer; margin-top: 0.25rem; }
-    .note { font-size: 0.7rem; color: #999; margin-top: 0.75rem; }
-
-    /* Charts */
-    .charts { display: flex; flex-direction: column; gap: 1rem; }
-    .chart-panel {
-      background: white; border-radius: 0.75rem; padding: 0.75rem;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    }
-    .chart-panel h3 { font-size: 0.85rem; margin: 0 0 0.25rem 0; display: flex; align-items: center; gap: 0.5rem; }
-    .chart-panel h3 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
-    canvas { width: 100%; height: 220px; display: block; }
-
-    .legend { display: flex; gap: 1rem; font-size: 0.7rem; color: #666; margin-bottom: 0.25rem; flex-wrap: wrap; }
-    .legend span { display: inline-flex; align-items: center; gap: 0.25rem; }
-    .legend .swatch { display: inline-block; width: 12px; height: 3px; border-radius: 1px; }
-    .legend .swatch.dash { border-top: 2px dashed; height: 0; }
-
-    .bite-zone { background: rgba(22,163,74,0.08); border-left: 2px solid var(--green); }
+    body { font-family: -apple-system, system-ui, sans-serif; margin: 1rem; }
+    video { width: 240px; height: 180px; border: 1px solid #ccc; }
+    canvas { width: 100%; max-width: 800px; height: 200px; border: 1px solid #ddd; display: block; margin-top: 1rem; }
+    .row { display: flex; gap: 1rem; align-items: flex-start; }
+    .stat { font-family: monospace; }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
 </head>
 <body>
-  <div class="layout">
-    <!-- Sidebar -->
-    <div class="sidebar">
-      <h2>📷 Camera</h2>
-      <video id="cam" autoplay muted playsinline></video>
-      <div class="stat-grid">
-        <div class="stat-item"><div class="val" id="mo">—</div><div class="lbl">Mouth Open</div></div>
-        <div class="stat-item"><div class="val" id="jd">—</div><div class="lbl">Jaw Drop</div></div>
-        <div class="stat-item"><div class="val" id="chews">0</div><div class="lbl">Chew Events</div></div>
-        <div class="stat-item"><div class="val" id="bites">0</div><div class="lbl">Bite Events</div></div>
-        <div class="stat-item"><div class="val" id="sessions">0</div><div class="lbl">Bite Sessions</div></div>
-        <div class="stat-item"><div class="val" id="nf">—</div><div class="lbl">Face Lost</div></div>
-      </div>
-
-      <div class="tuner">
-        <h3>⚙️ Detector Parameters</h3>
-        <label>minChewProminence (jaw_drop amplitude, default 0.003)</label>
-        <input id="t-minChewProminence" type="number" step="0.0005" value="0.003">
-
-        <label>minBiteProminence (mouth_open amplitude, default 0.005)</label>
-        <input id="t-minBiteProminence" type="number" step="0.001" value="0.005">
-
-        <label>minChewIntervalMs (default 175)</label>
-        <input id="t-minChewIntervalMs" type="number" step="25" value="175">
-
-        <label>minBiteEventIntervalMs (default 1000)</label>
-        <input id="t-minBiteEventIntervalMs" type="number" step="100" value="1000">
-
-        <label>biteEndPauseMs (default 3000)</label>
-        <input id="t-biteEndPauseMs" type="number" step="250" value="3000">
-
-        <label>minBiteChews (default 1)</label>
-        <input id="t-minBiteChews" type="number" step="1" value="1">
-
-        <label>warmupMs (default 0)</label>
-        <input id="t-warmupMs" type="number" step="500" value="0">
-
-        <button class="btn" id="apply-btn">Apply & Restart</button>
-      </div>
-      <p class="note">💡 Peaks are detected by <strong>prominence</strong> (wave amplitude), not by crossing a fixed value threshold. This makes detection robust to head/device movement.</p>
-    </div>
-
-    <!-- Charts -->
-    <div class="charts">
-      <div class="chart-panel">
-        <h3><span class="dot" style="background:var(--blue)"></span> Mouth Open — Bite Detection (by peak prominence ≥ minBiteProminence)</h3>
-        <div class="legend">
-          <span><span class="swatch" style="background:var(--blue)"></span> mouth_open</span>
-          <span style="color:var(--green)">▲ bite event</span>
-          <span style="background:rgba(22,163,74,0.15);padding:0 4px;border-radius:2px;">bite session</span>
-        </div>
-        <canvas id="chart-bite" width="1000" height="220"></canvas>
-      </div>
-
-      <div class="chart-panel">
-        <h3><span class="dot" style="background:var(--orange)"></span> Jaw Drop — Chew Detection (by peak prominence ≥ minChewProminence)</h3>
-        <div class="legend">
-          <span><span class="swatch" style="background:var(--orange)"></span> jaw_drop (chin-to-upper-lip)</span>
-          <span style="color:var(--red)">● chew event</span>
-          <span style="background:rgba(22,163,74,0.15);padding:0 4px;border-radius:2px;">bite session</span>
-        </div>
-        <canvas id="chart-chew" width="1000" height="220"></canvas>
-      </div>
+  <h1>Chewing Detector — Debug</h1>
+  <p style="font-size:0.9rem;color:#666;">
+    Tune via URL params, e.g.
+    <code>?k_chew=0.5&amp;warmupMs=3000&amp;confirmFrames=3</code>.
+  </p>
+  <div class="row">
+    <video id="cam" autoplay muted playsinline></video>
+    <div class="stat">
+      <div>mouth_open: <span id="m">—</span></div>
+      <div>jaw_drop: <span id="j">—</span></div>
+      <div>chews: <span id="p">0</span></div>
+      <div>bite events: <span id="be">0</span></div>
+      <div>bites: <span id="b">0</span></div>
+      <div>no_face: <span id="nf">—</span></div>
     </div>
   </div>
-
+  <canvas id="chart" width="800" height="200"></canvas>
   <script type="module" src="/js/debug_main.js"></script>
 </body>
 </html>
