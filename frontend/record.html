@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Record — Chewing Data Collection</title>
+  <style>
+    :root { --blue: #3b82f6; --green: #16a34a; --red: #ef4444; --bg: #fafafa; }
+    body { font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 1rem; background: var(--bg); }
+    .container { max-width: 960px; margin: 0 auto; }
+    h1 { font-size: 1.3rem; }
+    video { width: 240px; border-radius: 0.5rem; border: 1px solid #ddd; }
+    .row { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
+    .panel { background: white; border-radius: 0.75rem; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .controls { display: flex; gap: 0.5rem; margin: 1rem 0; }
+    button { font-size: 1rem; padding: 0.6rem 1.2rem; border: none; border-radius: 0.5rem; cursor: pointer; color: white; }
+    .btn-record { background: var(--red); }
+    .btn-stop { background: var(--blue); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-top: 0.5rem; }
+    .stats .v { font-size: 1.2rem; font-weight: 700; font-family: monospace; }
+    .stats .l { font-size: 0.7rem; color: #888; }
+    canvas { width: 100%; height: 250px; margin-top: 0.5rem; border-radius: 0.5rem; }
+    #status { margin-top: 0.5rem; font-size: 0.85rem; color: #666; }
+    .instructions { font-size: 0.85rem; color: #666; margin-top: 0.5rem; }
+    .instructions li { margin-bottom: 0.3rem; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>📹 Chewing Data Recorder</h1>
+    <div class="row">
+      <div class="panel">
+        <video id="cam" autoplay muted playsinline></video>
+        <div class="stats">
+          <div><div class="v" id="mo">—</div><div class="l">Mouth Open</div></div>
+          <div><div class="v" id="jd">—</div><div class="l">Jaw Drop</div></div>
+          <div><div class="v" id="frames">0</div><div class="l">Frames</div></div>
+        </div>
+      </div>
+      <div style="flex:1; min-width: 300px;">
+        <canvas id="chart" width="700" height="250"></canvas>
+      </div>
+    </div>
+    <div class="controls">
+      <button id="btn-start" class="btn-record">🔴 Start Recording</button>
+      <button id="btn-stop" class="btn-stop" disabled>⏹ Stop &amp; Download</button>
+    </div>
+    <div id="status">Click Start, then chew naturally. Press Stop when done to download the data.</div>
+    <div class="instructions">
+      <strong>Instructions:</strong>
+      <ul>
+        <li>Position your face clearly in the camera frame</li>
+        <li>Click <strong>Start Recording</strong></li>
+        <li>Eat naturally — take bites, chew, swallow</li>
+        <li>Click <strong>Stop & Download</strong> when finished</li>
+        <li>A JSON file with all landmark data will download</li>
+        <li>Re-record multiple sessions for better training data</li>
+      </ul>
+    </div>
+  </div>
+  <script type="module" src="/js/record_main.js"></script>
+</body>
+</html>

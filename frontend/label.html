@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Label — Chewing Data Annotation</title>
+  <style>
+    :root { --blue: #3b82f6; --orange: #f97316; --green: #16a34a; --red: #ef4444; --bg: #fafafa; }
+    body { font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 1rem; background: var(--bg); }
+    .container { max-width: 1200px; margin: 0 auto; }
+    h1 { font-size: 1.2rem; }
+    .toolbar { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
+    button { font-size: 0.85rem; padding: 0.5rem 1rem; border: none; border-radius: 0.4rem; cursor: pointer; color: white; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-load { background: var(--blue); }
+    .btn-export { background: var(--green); }
+    .btn-undo { background: #666; }
+    .btn-mode { background: #888; }
+    .btn-mode.active-chew { background: var(--red); }
+    .btn-mode.active-bite { background: var(--green); }
+    .info { font-size: 0.8rem; color: #666; }
+    .canvas-wrap { position: relative; background: white; border-radius: 0.75rem; padding: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    canvas { width: 100%; height: 380px; display: block; cursor: crosshair; }
+    .legend { display: flex; gap: 1rem; font-size: 0.75rem; color: #666; margin-top: 0.25rem; flex-wrap: wrap; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-top: 0.5rem; font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🏷️ Chewing Data Labeler</h1>
+    <div class="toolbar">
+      <button class="btn-load" id="btn-load">📂 Load JSON</button>
+      <button class="btn-mode active-chew" id="btn-mode-chew">🦷 Mode: Mark CHEW</button>
+      <button class="btn-mode" id="btn-mode-bite">🍽️ Mode: Mark BITE</button>
+      <button class="btn-undo" id="btn-undo">↩ Undo</button>
+      <button class="btn-export" id="btn-export" disabled>💾 Export Labeled</button>
+      <span class="info" id="file-info">No file loaded.</span>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="chart" width="1200" height="380"></canvas>
+    </div>
+    <div class="legend">
+      <span style="color:var(--blue)">─ mouth_open</span>
+      <span style="color:var(--orange)">─ jaw_drop</span>
+      <span style="color:var(--red)">● chew (click to add/remove)</span>
+      <span style="color:var(--green)">▲ bite (click to add/remove)</span>
+    </div>
+    <div class="stats">
+      <div>Chews: <strong id="count-chew">0</strong></div>
+      <div>Bites: <strong id="count-bite">0</strong></div>
+      <div>Frames: <strong id="count-frames">0</strong></div>
+      <div>Duration: <strong id="count-dur">0s</strong></div>
+    </div>
+  </div>
+  <input type="file" id="file-input" accept=".json" style="display:none">
+  <script type="module" src="/js/label_main.js"></script>
+</body>
+</html>
