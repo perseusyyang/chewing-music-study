@@ -151,7 +151,7 @@ def train_model(sessions, label_names):
         activation='relu',
         max_iter=500,
         early_stopping=True,
-        validation_fraction=0,  # we do manual validation
+        validation_fraction=0.1,  # internal val for early stopping
         random_state=42,
     )
     model.fit(X_train_s, y_train)
