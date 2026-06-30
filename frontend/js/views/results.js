@@ -9,6 +9,7 @@ const FOOD_LABELS = {
   western: 'Western',
   baozi: 'Chinese bun (包子)',
   bread: 'Western bread (面包)',
+  intervention: 'Intervention study',
 };
 const MUSIC_LABELS = {
   classical: 'Classical',
@@ -40,6 +41,31 @@ export function mountResults(router) {
   cardsEl.innerHTML = cards
     .map((c) => `<div class="card"><div class="v">${c.v}</div><div class="l">${c.l}</div></div>`)
     .join('');
+
+  // ---- intervention-specific results ----
+  if (session.intervention_baseline_hz != null) {
+    const intvSummary = document.getElementById('intervention-summary');
+    const intvCards = document.getElementById('intv-cards');
+    if (intvSummary && intvCards) {
+      intvSummary.classList.remove('hidden');
+
+      const totalIntvTime = (session.intervention_events || [])
+        .reduce((sum, e) => sum + ((e.end_ms || session.duration_sec * 1000) - e.start_ms), 0);
+      const intvCount = (session.intervention_events || []).length;
+
+      const intvStatCards = [
+        { l: 'Baseline', v: (session.intervention_baseline_hz * 60).toFixed(1) + ' / min' },
+        { l: 'Interventions', v: intvCount },
+        { l: 'Total intervention time', v: formatMs(totalIntvTime) },
+        { l: 'Min playback rate', v: minPlaybackRate(session.playback_rate_snapshots).toFixed(2) + '×' },
+      ];
+      intvCards.innerHTML = intvStatCards
+        .map((c) => `<div class="card"><div class="v">${c.v}</div><div class="l">${c.l}</div></div>`)
+        .join('');
+
+      renderPlaybackChart(session.playback_rate_snapshots || []);
+    }
+  }
 
   renderFreqChart(s.chewFreqBuckets10s);
   renderBitesChart(session.bites);
@@ -105,6 +131,13 @@ function buildPayload() {
       viewport: `${window.innerWidth}x${window.innerHeight}`,
       fps_observed: 0,
     },
+    // Intervention data (null for non-intervention studies)
+    intervention: session.intervention_baseline_hz != null ? {
+      baseline_hz: session.intervention_baseline_hz,
+      events: session.intervention_events,
+      playback_rate_snapshots: session.playback_rate_snapshots,
+      config: session.intervention_config,
+    } : null,
   };
 }
 
@@ -112,6 +145,19 @@ function formatDuration(sec) {
   const mm = Math.floor(sec / 60);
   const ss = sec % 60;
   return `${mm}:${String(ss).padStart(2, '0')}`;
+}
+
+function formatMs(ms) {
+  const totalSec = Math.round(ms / 1000);
+  if (totalSec < 60) return totalSec + 's';
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}m ${s}s`;
+}
+
+function minPlaybackRate(snapshots) {
+  if (!snapshots || snapshots.length === 0) return 1.0;
+  return snapshots.reduce((min, p) => Math.min(min, p.rate), 1.0);
 }
 
 function renderFreqChart(buckets10s) {
@@ -139,5 +185,32 @@ function renderBitesChart(bites) {
       datasets: [{ label: 'Chews', data: bites.map((b) => b.chew_count), backgroundColor: '#16a34a' }],
     },
     options: { responsive: true, scales: { y: { beginAtZero: true } } },
+  });
+}
+
+function renderPlaybackChart(snapshots) {
+  const canvas = document.getElementById('playback-chart');
+  if (!canvas || !snapshots.length) return;
+  const ctx = canvas.getContext('2d');
+  // eslint-disable-next-line no-undef
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: snapshots.map((p) => formatMs(p.t_ms)),
+      datasets: [{
+        label: 'Playback rate',
+        data: snapshots.map((p) => p.rate),
+        borderColor: '#dc2626',
+        backgroundColor: 'rgba(220,38,38,0.08)',
+        fill: true,
+        tension: 0.3,
+      }],
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: { min: 0.4, max: 1.1, ticks: { callback: (v) => v.toFixed(1) + '×' } },
+      },
+    },
   });
 }

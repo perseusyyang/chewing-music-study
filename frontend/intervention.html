@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Intervention Study — Chewing &amp; Music</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4" crossorigin="anonymous"></script>
+</head>
+<body>
+  <main id="app"></main>
+
+  <template id="view-consent">
+    <section class="view">
+      <h1>Pace Intervention Study</h1>
+      <h2>Purpose</h2>
+      <p>We are studying whether real-time audio feedback can help people become more aware of their eating pace. When you chew faster than your natural baseline, the music will <strong>gradually slow down</strong> as a gentle cue to slow your pace.</p>
+      <h2>Privacy</h2>
+      <ul>
+        <li>Your camera will be turned on, but <strong>video frames stay in your browser and are never uploaded</strong>.</li>
+        <li>If you choose to upload at the end, we only collect: food type, music type, chew counts and timestamps, per-bite data, intervention events, and device info (browser, screen size).</li>
+        <li>We do <strong>not</strong> collect: your face, name, email, IP address, or location.</li>
+        <li>Uploading is voluntary — you only send data if you tap "Upload" on the results page.</li>
+        <li>You can quit any time by closing this page.</li>
+      </ul>
+      <label class="consent-row">
+        <input type="checkbox" id="consent-check">
+        I have read and agree to participate.
+      </label>
+      <button id="consent-continue" disabled>Continue</button>
+    </section>
+  </template>
+
+  <template id="view-setup">
+    <section class="view">
+      <h1>Ready to start</h1>
+      <p class="setup-note">During the first 30 seconds, we establish your natural chewing baseline. After that, if your pace rises significantly above baseline, the music will <strong>gradually slow down</strong> to remind you to eat at a relaxed pace.</p>
+      <p class="setup-music">Background music: slow electronic (85 BPM), one random track on loop.</p>
+      <button id="setup-start">Start recording</button>
+    </section>
+  </template>
+
+  <template id="view-recording">
+    <section class="view recording">
+      <video id="cam" autoplay muted playsinline></video>
+      <div class="timer" id="timer">00:00</div>
+      <div class="now-playing"><span class="label">Now playing:</span> <span id="track-title">—</span></div>
+
+      <!-- Intervention status panel -->
+      <div id="intervention-panel" class="intv-panel hidden">
+        <div class="intv-row">
+          <span class="intv-label">Chew rate</span>
+          <span class="intv-value" id="intv-chew-rate">—</span>
+        </div>
+        <div class="intv-row">
+          <span class="intv-label">Baseline</span>
+          <span class="intv-value" id="intv-baseline">—</span>
+        </div>
+        <div class="intv-row">
+          <span class="intv-label">Playback</span>
+          <span class="intv-value" id="intv-playback-rate">—</span>
+        </div>
+        <div class="intv-row">
+          <span class="intv-label">Status</span>
+          <span class="intv-value" id="intv-status">—</span>
+        </div>
+      </div>
+
+      <div class="status">
+        <span class="dot" id="status-dot"></span>
+        <span id="status-text">Detecting…</span>
+      </div>
+      <button id="recording-stop" class="stop">End recording</button>
+    </section>
+  </template>
+
+  <template id="view-results">
+    <section class="view">
+      <h1>Your session</h1>
+      <div class="cards" id="result-cards"></div>
+
+      <!-- Intervention summary (hidden by default, shown when data exists) -->
+      <div id="intervention-summary" class="hidden">
+        <h2>Intervention summary</h2>
+        <div class="cards" id="intv-cards"></div>
+        <h2>Playback rate over time</h2>
+        <canvas id="playback-chart"></canvas>
+      </div>
+
+      <h2>Chewing frequency over time</h2>
+      <canvas id="freq-chart"></canvas>
+      <h2>Chews per bite</h2>
+      <canvas id="bites-chart"></canvas>
+      <div class="actions">
+        <button id="upload-btn">Upload anonymous result</button>
+        <button id="again-btn">Start another session</button>
+        <button id="home-btn" class="secondary">← Back to main menu</button>
+      </div>
+      <p id="upload-status"></p>
+    </section>
+  </template>
+
+  <script type="module" src="/js/intervention_main.js"></script>
+</body>
+</html>

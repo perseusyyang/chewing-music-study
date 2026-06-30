@@ -36,8 +36,14 @@ CREATE TABLE IF NOT EXISTS sessions (
     bites_json TEXT NOT NULL,
     chew_events_json TEXT NOT NULL,
     bite_events_json TEXT NOT NULL,
-    client_info_json TEXT NOT NULL
+    client_info_json TEXT NOT NULL,
+    intervention_json TEXT
 );
+"""
+
+# Migration: add intervention_json column to existing tables that lack it.
+MIGRATE_INTERVENTION = """
+ALTER TABLE sessions ADD COLUMN intervention_json TEXT
 """
 
 INSERT_COLUMNS = (
@@ -46,12 +52,18 @@ INSERT_COLUMNS = (
     "total_chews, total_bite_events, total_bites, "
     "avg_chew_freq_hz, avg_chews_per_bite, "
     "chew_freq_buckets_json, bites_json, "
-    "chew_events_json, bite_events_json, client_info_json"
+    "chew_events_json, bite_events_json, client_info_json, "
+    "intervention_json"
 )
-_N_COLS = 18
+_N_COLS = 19
 
 
 def _session_to_row(session: SessionUpload) -> tuple:
+    intervention_json = None
+    if session.intervention:
+        intervention_json = json.dumps(
+            session.intervention.model_dump(exclude_none=True)
+        )
     return (
         session.session_id,
         datetime.now(timezone.utc).isoformat(),
@@ -71,6 +83,7 @@ def _session_to_row(session: SessionUpload) -> tuple:
         json.dumps(session.chew_events_ms),
         json.dumps(session.bite_events_ms),
         json.dumps(session.client_info.model_dump()),
+        intervention_json,
     )
 
 
@@ -85,11 +98,16 @@ class Database:
     def _init_sqlite(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.kind = "sqlite"
-        self.conn = sqlite3.connect(path)
+        self.conn = sqlite3.connect(path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.placeholder = "?"
         self._integrity_error: type[BaseException] = sqlite3.IntegrityError
         self.conn.executescript(SCHEMA)
+        # Add intervention_json column to existing databases (safe no-op if present).
+        try:
+            self.conn.execute(MIGRATE_INTERVENTION)
+        except sqlite3.OperationalError:
+            pass  # column already exists
         self.conn.commit()
 
     def _init_postgres(self, url: str) -> None:
@@ -105,6 +123,11 @@ class Database:
         self._integrity_error = psycopg2.IntegrityError
         with self.conn.cursor() as cur:
             cur.execute(SCHEMA)
+            # Add intervention_json column to existing databases.
+            try:
+                cur.execute(MIGRATE_INTERVENTION)
+            except psycopg2.Error:
+                self.conn.rollback()
         self.conn.commit()
 
     def insert(self, session: SessionUpload) -> bool:

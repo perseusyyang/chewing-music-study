@@ -64,3 +64,47 @@ canvas { background: white; border-radius: 0.5rem; padding: 0.5rem; margin-top: 
 button.secondary { background: #fff; color: var(--accent); border: 1.5px solid var(--accent); }
 .nav-alt { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e5e5e5; font-size: 0.9rem; color: #666; }
 .nav-alt a { color: var(--accent); }
+
+/* ---- intervention panel ---- */
+.intv-panel {
+  background: white;
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 1.5rem;
+  width: 100%;
+  max-width: 360px;
+}
+.intv-panel.hidden { display: none; }
+.intv-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.intv-label {
+  font-size: 0.8rem;
+  color: var(--grey);
+}
+.intv-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: monospace;
+}
+.intv-monitoring { color: var(--green); }
+.intv-intervening { color: var(--red); }
+
+.setup-note {
+  background: #eef2ff;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.9rem;
+  color: #444;
+  line-height: 1.5;
+}
+.setup-music {
+  color: #666;
+  font-size: 0.9rem;
+  margin: 0.5rem 0 0 0;
+}

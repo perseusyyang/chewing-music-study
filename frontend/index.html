@@ -9,7 +9,7 @@
     .landing { text-align: center; padding-top: 3rem; }
     .landing h1 { font-size: 2rem; margin-bottom: 0.5rem; }
     .landing .subtitle { color: #666; margin-bottom: 3rem; font-size: 1.05rem; }
-    .studies { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; max-width: 640px; margin: 0 auto; }
+    .studies { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; max-width: 780px; margin: 0 auto; }
     .study-card {
       background: white;
       border-radius: 1rem;
@@ -59,6 +59,13 @@
           <h2>Tempo Study</h2>
           <p>See how slow (85 BPM) vs fast (145 BPM) electronic music changes your chewing rhythm.</p>
           <span class="tag">Slow vs Fast</span>
+        </a>
+
+        <a class="study-card" href="/intervention.html">
+          <span class="icon">🐢</span>
+          <h2>Pace Intervention</h2>
+          <p>Music slows down in real time when you chew too fast, helping you find a relaxed pace.</p>
+          <span class="tag">Real-time feedback</span>
         </a>
       </div>
     </section>
